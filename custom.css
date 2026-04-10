@@ -1,119 +1,85 @@
 :root {
-  /* 核心主题色：青色 */
   --custom-theme-color: 3, 191, 196;
-  /* 编辑区标签页高度 */
-  --custom-editor-tab-height: 35px; 
+  --custom-editor-tab-height: 35px;
 }
 
-/* =========================================
-   1. 全局滚动条美化与劫持 (应用于所有区域)
-========================================= */
-/* 劫持并禁用所有垂直滚动条轨道的鼠标事件 */
-.monaco-scrollable-element > .scrollbar.vertical {
+/* 1. 滚动条事件劫持 (原生无法做到 pointer-events: none) */
+.monaco-scrollable-element>.scrollbar.vertical {
   pointer-events: none !important;
 }
 
-/* 滑块样式重写：细化与主题色注入 */
-.monaco-scrollable-element > .scrollbar > .slider {
-  position: absolute !important;
-  width: 3px !important;
-  background: rgb(var(--custom-theme-color)) !important;
-  left: auto !important;
-  right: 3px !important;
-  /* 仅对颜色和位置进行过渡，优化渲染性能 */
-  transition: background-color 0.3s ease, right 0.3s ease !important;
-}
-
-/* =========================================
-   2. 隐藏冗余视觉元素 (全局)
-========================================= */
-/* 隐藏编辑器右侧概览标尺、终端滚动标尺、右上角布局控制按钮、标签栏操作按钮 */
+/* 2. 隐藏极其底层的渲染画布 (如果发现 setting.json 无法压制特定插件的覆盖标尺，保留这两行) */
 .monaco-editor .decorationsOverviewRuler,
-.xterm-decoration-overview-ruler,
-.titlebar-right > .layout-controls-container,
-.editor-actions {
+.xterm-decoration-overview-ruler {
   display: none !important;
 }
 
-/* =========================================
-   3. 编辑区 (Editor) 专属样式美化
-========================================= */
-/* 标签页整体高度限制与过渡动画 */
-.monaco-workbench .part.editor .tabs-container > .tab {
+/* 3. 标签页圆角高度与过渡动画 (原生不支持定义 Tab 的 border-radius) */
+.monaco-workbench .part.editor .tabs-container>.tab {
   height: var(--custom-editor-tab-height) !important;
-  border-radius: 0 0 10px 10px !important;
+  border-bottom-right-radius: 10px !important;
   transition: background-color 0.3s ease, color 0.3s ease !important;
 }
 
-/* 激活状态的标签页主题色 */
-.monaco-workbench .part.editor .tabs-container > .tab.active {
-  border-right: 1px solid rgba(0, 0, 0, 0.2) !important;
-  color: #ffffff !important;
-  background-color: rgba(var(--custom-theme-color), 0.6) !important;
-}
-
-/* =========================================
-   4. 编辑区卡片化边界 (安全方案)
-========================================= */
-/* 使用内阴影为整个编辑区绘制一圈青色边框，绝对不改变 width/height/margin，保证不白屏 */
+/* 4. 编辑区卡片化内边框 (原生 border 会改变计算，必须用 inset 阴影) */
 .monaco-workbench .part.editor {
-  box-shadow: 
-    inset 0 1px 0 0 rgba(var(--custom-theme-color), 0.3), /* 顶边 */
-    inset 1px 0 0 0 rgba(var(--custom-theme-color), 0.3), /* 左边 */
-    inset -1px 0 0 0 rgba(var(--custom-theme-color), 0.3), /* 右边 */
-    inset 0 -1px 0 0 rgba(var(--custom-theme-color), 0.3) !important; /* 底边 */
+  box-shadow:
+    inset 0 1px 0 0 rgba(var(--custom-theme-color), 0.3),
+    inset 1px 0 0 0 rgba(var(--custom-theme-color), 0.3),
+    inset -1px 0 0 0 rgba(var(--custom-theme-color), 0.3),
+    inset 0 -1px 0 0 rgba(var(--custom-theme-color), 0.3) !important;
 }
 
-/* 确保内部容器透明，防止遮挡上面设置的阴影边框 */
-.monaco-workbench .part.editor > .content {
+.monaco-workbench .part.editor>.content {
   background-color: transparent !important;
 }
 
-/* 修复面包屑溢出文字截断 */
 .monaco-editor .sticky-widget {
   width: 100% !important;
 }
 
+.monaco-scrollable-element .scrollbar.vertical .slider {
+  width: 3px !important;
+  background: rgb(var(--custom-theme-color)) !important;
+  left: auto !important;
+  right: 3px !important; 
+  transition: background-color 0.3s ease, right 0.3s ease !important;
+}
+
+.monaco-scrollable-element .scrollbar.vertical .slider:hover {
+  background: rgba(var(--custom-theme-color), 0.8) !important;
+}
+
+
+
 /* =========================================
-   5. 面板区 (Panel/终端) 视觉点缀
+补充：底部控制台与终端专属滚动条修复
 ========================================= */
-/* 底部面板选项卡激活指示器 (红色下划线改主题色) */
-.monaco-workbench .part.panel .action-item.checked .active-item-indicator::before {
-  border-top-color: rgb(var(--custom-theme-color)) !important;
+/* =========================================
+   终端 (Terminal) DOM 模拟滚动条强制细化 (针对新版渲染引擎)
+========================================= */
+
+/* 1. 强制把终端的垂直滚动条轨道压缩到 3px */
+.xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical {
+  width: 3px !important;
 }
 
-/* 鼠标样式 */
-/* #cursor {
-  position: fixed;
-  width: 16px;
-  height: 16px;
-  background: rgb(var(--custom_theme-color));
-  border-radius: 8px;
-  opacity: 0.25;
-  z-index: 10086;
-  pointer-events: none;
-  transition: 0.2s ease-in-out;
-  transition-property: background, opacity, transform;
+/* 2. 强制把终端的滑块也压缩到 3px，并注入青色主题 */
+.xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical .xterm-slider {
+  width: 3px !important;
+  background: rgb(var(--custom-theme-color)) !important;
+  left: auto !important; /* 覆盖原生样式，防止错位 */
+  right: 0 !important;   /* 死死贴住最右侧 */
+  /* 去除位置动画，防止滑动时抖动，仅保留颜色渐变 */
+  transition: background-color 0.3s ease !important;
 }
 
-#cursor.hidden {
-  opacity: 0;
+/* 3. 鼠标悬停加深颜色 */
+.xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical .xterm-slider:hover {
+  background: rgba(var(--custom-theme-color), 0.8) !important;
 }
 
-#cursor.hover {
-  opacity: 0.1;
-  transform: scale(2.5);
-  -webkit-transform: scale(2.5);
-  -moz-transform: scale(2.5);
-  -ms-transform: scale(2.5);
-  -o-transform: scale(2.5);
+/* 4. （可选）如果你还想隐藏终端右侧那条很细的灰色背景线 */
+.xterm .xterm-scrollable-element {
+  background-color: transparent !important;
 }
-
-#cursor.active {
-  opacity: 0.5;
-  transform: scale(0.5);
-  -webkit-transform: scale(0.5);
-  -moz-transform: scale(0.5);
-  -ms-transform: scale(0.5);
-  -o-transform: scale(0.5);
-} */
