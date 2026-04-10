@@ -128,3 +128,49 @@
 .monaco-workbench .part.activitybar {
   clip-path: inset(0 round 15px) !important;
 }
+
+
+/* =========================================
+   核心区域：全模块卡片化与顶层灰色无损边框
+========================================= */
+
+/* 1. 仅保留 clip-path 负责物理圆角裁剪，彻底移除容易被遮挡的 box-shadow */
+.monaco-workbench .part.editor,
+.monaco-workbench .part.sidebar,
+.monaco-workbench .part.panel,
+.monaco-workbench .part.activitybar {
+  clip-path: inset(0 round 15px) !important;
+  position: relative !important; /* 确保后续的顶层覆盖物能准确定位 */
+  box-shadow: none !important;   /* 移除之前的青色内阴影 */
+}
+
+/* 2. 核心魔法：使用 ::after 伪元素在最顶层绘制灰色边框 */
+.monaco-workbench .part.editor::after,
+.monaco-workbench .part.sidebar::after,
+.monaco-workbench .part.panel::after,
+.monaco-workbench .part.activitybar::after {
+  content: "" !important;
+  position: absolute !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  
+  /* 在这里设置您想要的灰色边框！*/
+  /* rgba(150, 150, 150, 0.4) 是一个百搭的半透明柔和灰色 */
+  border: 0.5px solid rgba(150, 150, 150, 0.4) !important; 
+  border-radius: 15px !important; /* 这里的圆角必须和 clip-path 的 10px 保持一致 */
+  box-sizing: border-box !important;
+  
+  z-index: 9999 !important; /* 强行置顶，绝对不会再被子区域的背景色遮挡断裂 */
+  pointer-events: none !important; /* 关键：鼠标穿透，保证里面的代码和按钮可以正常点击 */
+}
+
+/* 3. 彻底干掉 VS Code 原生的丑陋投影 (比如滚动时的黑边、面板上方的黑影) */
+.monaco-scrollable-element > .shadow,
+.monaco-scrollable-element > .shadow.top,
+.monaco-scrollable-element > .shadow.top-left-corner,
+.monaco-workbench .part > .shadow {
+  display: none !important;
+  box-shadow: none !important;
+}
