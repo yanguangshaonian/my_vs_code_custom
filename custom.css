@@ -1,27 +1,24 @@
+/* =========================================
+  1. 全局变量与主题配置 (Variables & Theme)
+========================================= */
 :root {
+  /* 核心主题色：青色 (RGB格式，便于使用 rgba 设置透明度) */
   --custom-theme-color: 3, 191, 196;
+  /* 编辑区标签页统一高度 */
   --custom-editor-tab-height: 35px;
 }
 
-/* 1. 滚动条事件劫持 (原生无法做到 pointer-events: none) */
-.monaco-scrollable-element>.scrollbar.vertical {
-  pointer-events: none !important;
-}
-
-/* 2. 隐藏极其底层的渲染画布 (如果发现 setting.json 无法压制特定插件的覆盖标尺，保留这两行) */
-.monaco-editor .decorationsOverviewRuler,
-.xterm-decoration-overview-ruler {
-  display: none !important;
-}
-
-/* 3. 标签页圆角高度与过渡动画 (原生不支持定义 Tab 的 border-radius) */
-.monaco-workbench .part.editor .tabs-container>.tab {
+/* =========================================
+  2. 编辑区核心视觉重塑 (Editor Visuals)
+========================================= */
+/* 2.1 标签页 (Tab) 样式：圆角高度与过渡动画 */
+.monaco-workbench .part.editor .tabs-container > .tab {
   height: var(--custom-editor-tab-height) !important;
-  border-bottom-right-radius: 10px !important;
+  border-radius: 0 0 10px 10px !important;
   transition: background-color 0.3s ease, color 0.3s ease !important;
 }
 
-/* 4. 编辑区卡片化内边框 (原生 border 会改变计算，必须用 inset 阴影) */
+/* 2.2 编辑区卡片化：使用内阴影绘制青色边框，避免破坏 JS 布局计算 */
 .monaco-workbench .part.editor {
   box-shadow:
     inset 0 1px 0 0 rgba(var(--custom-theme-color), 0.3),
@@ -30,14 +27,26 @@
     inset 0 -1px 0 0 rgba(var(--custom-theme-color), 0.3) !important;
 }
 
-.monaco-workbench .part.editor>.content {
+/* 2.3 确保编辑器的内部容器背景透明，防止遮挡上述内阴影边框 */
+.monaco-workbench .part.editor > .content {
   background-color: transparent !important;
 }
 
+/* 2.4 面包屑 (Sticky Scroll/Breadcrumbs) 宽度修正，防止文字截断 */
 .monaco-editor .sticky-widget {
   width: 100% !important;
 }
 
+/* =========================================
+  3. 全局模拟滚动条样式 (Global DOM Scrollbars)
+  适用范围：左侧管理区、输出、调试控制台等非 xterm 区域
+========================================= */
+/* 3.1 滚动条事件劫持：禁用轨道鼠标事件，允许点击穿透到底层代码 */
+.monaco-scrollable-element > .scrollbar.vertical {
+  pointer-events: none !important;
+}
+
+/* 3.2 滑块细化与着色 */
 .monaco-scrollable-element .scrollbar.vertical .slider {
   width: 3px !important;
   background: rgb(var(--custom-theme-color)) !important;
@@ -46,40 +55,45 @@
   transition: background-color 0.3s ease, right 0.3s ease !important;
 }
 
+/* 3.3 滑块悬停状态：加深颜色 */
 .monaco-scrollable-element .scrollbar.vertical .slider:hover {
   background: rgba(var(--custom-theme-color), 0.8) !important;
 }
 
-
-
 /* =========================================
-补充：底部控制台与终端专属滚动条修复
+  4. 终端专属滚动条修复 (Terminal / xterm.js)
+  适用范围：底层采用新版 DOM 渲染的集成终端
 ========================================= */
-/* =========================================
-   终端 (Terminal) DOM 模拟滚动条强制细化 (针对新版渲染引擎)
-========================================= */
+/* 4.1 终端滚动条容器：隐藏右侧多余的灰色背景线 */
+.xterm .xterm-scrollable-element {
+  background-color: transparent !important;
+}
 
-/* 1. 强制把终端的垂直滚动条轨道压缩到 3px */
+/* 4.2 终端滚动条轨道：强制压缩至 3px 宽度 */
 .xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical {
   width: 3px !important;
 }
 
-/* 2. 强制把终端的滑块也压缩到 3px，并注入青色主题 */
+/* 4.3 终端滑块细化与着色 */
 .xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical .xterm-slider {
   width: 3px !important;
   background: rgb(var(--custom-theme-color)) !important;
-  left: auto !important; /* 覆盖原生样式，防止错位 */
-  right: 0 !important;   /* 死死贴住最右侧 */
-  /* 去除位置动画，防止滑动时抖动，仅保留颜色渐变 */
+  left: auto !important; 
+  right: 0 !important; /* 轨道已压缩至 3px，滑块贴紧最右侧即完美对齐 */
+  /* 仅保留颜色渐变，去除位置动画防止终端滚动时产生视觉抖动 */
   transition: background-color 0.3s ease !important;
 }
 
-/* 3. 鼠标悬停加深颜色 */
+/* 4.4 终端滑块悬停状态：加深颜色 */
 .xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical .xterm-slider:hover {
   background: rgba(var(--custom-theme-color), 0.8) !important;
 }
 
-/* 4. （可选）如果你还想隐藏终端右侧那条很细的灰色背景线 */
-.xterm .xterm-scrollable-element {
-  background-color: transparent !important;
+/* =========================================
+  5. 冗余 UI 与底层画布隐藏 (Cleanup)
+========================================= */
+/* 隐藏编辑器和终端右侧极底层的渲染画布 (概览标尺)，防止色彩污染 */
+.monaco-editor .decorationsOverviewRuler,
+.xterm-decoration-overview-ruler {
+  display: none !important;
 }
