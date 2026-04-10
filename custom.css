@@ -1,172 +1,116 @@
 /* =========================================
-  1. 全局变量与主题配置 (Variables & Theme)
+  1. 全局变量与主题配置
 ========================================= */
 :root {
-  /* 核心主题色：青色 (RGB格式，便于使用 rgba 设置透明度) */
   --custom-theme-color: 3, 191, 196;
-  /* 编辑区标签页统一高度 */
+  --custom-border-radius: 15px;
+  --custom-border-color: rgba(150, 150, 150, 0.4);
   --custom-editor-tab-height: 35px;
 }
 
 /* =========================================
-  2. 编辑区核心视觉重塑 (Editor Visuals)
-========================================= */
-/* 2.1 标签页 (Tab) 样式：圆角高度与过渡动画 */
-.monaco-workbench .part.editor .tabs-container > .tab {
-  height: var(--custom-editor-tab-height) !important;
-  border-radius: 0 0 15px 15px !important;
-  transition: background-color 0.3s ease, color 0.3s ease !important;
-}
-
-/* 2.2 编辑区卡片化：使用内阴影绘制青色边框，避免破坏 JS 布局计算 */
-.monaco-workbench .part.editor {
-  box-shadow:
-    inset 0 1px 0 0 rgba(var(--custom-theme-color), 0.3),
-    inset 1px 0 0 0 rgba(var(--custom-theme-color), 0.3),
-    inset -1px 0 0 0 rgba(var(--custom-theme-color), 0.3),
-    inset 0 -1px 0 0 rgba(var(--custom-theme-color), 0.3) !important;
-}
-
-/* 2.3 确保编辑器的内部容器背景透明，防止遮挡上述内阴影边框 */
-.monaco-workbench .part.editor > .content {
-  background-color: transparent !important;
-}
-
-/* 2.4 面包屑 (Sticky Scroll/Breadcrumbs) 宽度修正，防止文字截断 */
-.monaco-editor .sticky-widget {
-  width: 100% !important;
-}
-
-/* =========================================
-  3. 全局模拟滚动条样式 (Global DOM Scrollbars)
-  适用范围：左侧管理区、输出、调试控制台等非 xterm 区域
-========================================= */
-/* 3.1 滚动条事件劫持：禁用轨道鼠标事件，允许点击穿透到底层代码 */
-.monaco-scrollable-element > .scrollbar.vertical {
-  pointer-events: none !important;
-}
-
-/* 3.2 滑块细化与着色 */
-.monaco-scrollable-element .scrollbar.vertical .slider {
-  width: 3px !important;
-  background: rgb(var(--custom-theme-color)) !important;
-  left: auto !important;
-  right: 3px !important; 
-  transition: background-color 0.3s ease, right 0.3s ease !important;
-}
-
-/* 3.3 滑块悬停状态：加深颜色 */
-.monaco-scrollable-element .scrollbar.vertical .slider:hover {
-  background: rgba(var(--custom-theme-color), 0.8) !important;
-}
-
-/* =========================================
-  4. 终端专属滚动条修复 (Terminal / xterm.js)
-  适用范围：底层采用新版 DOM 渲染的集成终端
-========================================= */
-/* 4.1 终端滚动条容器：隐藏右侧多余的灰色背景线 */
-.xterm .xterm-scrollable-element {
-  background-color: transparent !important;
-}
-
-/* 4.2 终端滚动条轨道：强制压缩至 3px 宽度 */
-.xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical {
-  width: 3px !important;
-  right: 3px !important;
-  pointer-events: none !important;
-}
-
-/* 4.3 终端滑块细化与着色 */
-.xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical .xterm-slider {
-  width: 3px !important;
-  background: rgb(var(--custom-theme-color)) !important;
-  left: auto !important; 
-  right: 0 !important; /* 轨道已压缩至 3px，滑块贴紧最右侧即完美对齐 */
-  /* 仅保留颜色渐变，去除位置动画防止终端滚动时产生视觉抖动 */
-  transition: background-color 0.3s ease !important;
-}
-
-/* 4.4 终端滑块悬停状态：加深颜色 */
-.xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical .xterm-slider:hover {
-  background: rgba(var(--custom-theme-color), 0.8) !important;
-}
-
-/* =========================================
-  5. 冗余 UI 与底层画布隐藏 (Cleanup)
-========================================= */
-/* 隐藏编辑器和终端右侧极底层的渲染画布 (概览标尺)，防止色彩污染 */
-.monaco-editor .decorationsOverviewRuler,
-.xterm-decoration-overview-ruler {
-  display: none !important;
-}
-
-.monaco-workbench .part.statusbar {
-  clip-path: inset(0 round 15px 15px 0 0) !important;
-}
-
-
-/* =========================================
-   补充：底部面板区 (终端/问题/输出) 四周圆角与卡片化
+  2. 核心五大区域: 卡片化圆角与顶层灰色边框
+  (包含: 编辑区、侧边栏、底部面板、活动栏、状态栏)
 ========================================= */
 
-/* 给整个底部面板强制裁剪出四周 10px 的圆角 */
-.monaco-workbench .part.panel {
-  clip-path: inset(0 round 15px) !important;
-  }
-
-/* 1. 给右侧整个代码编辑区 (Editor) 四周加上 10px 圆角 */
-.monaco-workbench .part.editor {
-  clip-path: inset(0 round 15px) !important;
-}
-
-/* 2. 给左侧的侧边栏 (Sidebar - 资源管理器等) 加上四周 10px 圆角 */
-.monaco-workbench .part.sidebar {
-  clip-path: inset(0 round 15px) !important;
-}
-
-/* 3. (可选) 如果您的 VS Code 依然保留了最左侧竖排的传统“活动栏 (Activity Bar)”，也给它加上圆角 */
-.monaco-workbench .part.activitybar {
-  clip-path: inset(0 round 15px) !important;
-}
-
-
-/* =========================================
-   核心区域：全模块卡片化与顶层灰色无损边框
-========================================= */
-
-/* 1. 仅保留 clip-path 负责物理圆角裁剪，彻底移除容易被遮挡的 box-shadow */
+/* 2.1 物理裁剪: 使用 clip-path 实现 15px 四周圆角, 不触发重排 */
 .monaco-workbench .part.editor,
 .monaco-workbench .part.sidebar,
 .monaco-workbench .part.panel,
-.monaco-workbench .part.activitybar {
-  clip-path: inset(0 round 15px) !important;
-  position: relative !important; /* 确保后续的顶层覆盖物能准确定位 */
-  box-shadow: none !important;   /* 移除之前的青色内阴影 */
+.monaco-workbench .part.activitybar,
+.monaco-workbench .part.statusbar {
+  clip-path: inset(0 round var(--custom-border-radius)) !important;
+  position: relative !important;
+  box-shadow: none !important;
 }
 
-/* 2. 核心魔法：使用 ::after 伪元素在最顶层绘制灰色边框 */
+/* 2.2 顶层无损边框: 使用 ::after 伪元素强制置顶 0.5px 灰色边框 */
 .monaco-workbench .part.editor::after,
 .monaco-workbench .part.sidebar::after,
 .monaco-workbench .part.panel::after,
-.monaco-workbench .part.activitybar::after {
+.monaco-workbench .part.activitybar::after,
+.monaco-workbench .part.statusbar::after {
   content: "" !important;
   position: absolute !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
   bottom: 0 !important;
-  
-  /* 在这里设置您想要的灰色边框！*/
-  /* rgba(150, 150, 150, 0.4) 是一个百搭的半透明柔和灰色 */
-  border: 0.5px solid rgba(150, 150, 150, 0.4) !important; 
-  border-radius: 15px !important; /* 这里的圆角必须和 clip-path 的 10px 保持一致 */
+  border: 0.5px solid var(--custom-border-color) !important; 
+  border-radius: var(--custom-border-radius) !important; 
   box-sizing: border-box !important;
-  
-  z-index: 9999 !important; /* 强行置顶，绝对不会再被子区域的背景色遮挡断裂 */
-  pointer-events: none !important; /* 关键：鼠标穿透，保证里面的代码和按钮可以正常点击 */
+  z-index: 9999 !important;
+  pointer-events: none !important;
 }
 
-/* 3. 彻底干掉 VS Code 原生的丑陋投影 (比如滚动时的黑边、面板上方的黑影) */
+
+/* 2.3 背景透明化: 防止内部容器遮挡边框 */
+.monaco-workbench .part.editor > .content,
+.monaco-workbench .part.panel > .composite.title,
+.monaco-workbench .part.statusbar {
+  background-color: transparent !important;
+}
+
+/* =========================================
+  3. UI 细节修正 (标签页与面包屑)
+========================================= */
+/* 3.1 标签页 (Tab) 样式 */
+.monaco-workbench .part.editor .tabs-container > .tab {
+  height: var(--custom-editor-tab-height) !important;
+  border-radius: 0 0 var(--custom-border-radius) var(--custom-border-radius) !important;
+  transition: background-color 0.3s ease, color 0.3s ease !important;
+}
+
+/* 3.2 面包屑 (Sticky Scroll) */
+.monaco-editor .sticky-widget {
+  width: 100% !important;
+}
+
+/* =========================================
+  4. 全局滚动条细化统一 (Scrollbars)
+========================================= */
+/* 4.1 Monaco 模拟滚动条 (侧边栏、输出等) */
+.monaco-scrollable-element > .scrollbar.vertical {
+  pointer-events: none !important;
+}
+.monaco-scrollable-element .scrollbar.vertical .slider {
+  width: 3px !important;
+  background: rgb(var(--custom-theme-color)) !important;
+  left: auto !important;
+  right: 3px !important; 
+  transition: background-color 0.3s ease !important;
+}
+.monaco-scrollable-element .scrollbar.vertical .slider:hover {
+  background: rgba(var(--custom-theme-color), 0.8) !important;
+}
+
+/* 4.2 终端专属滚动条 (xterm.js) */
+.xterm .xterm-scrollable-element {
+  background-color: transparent !important;
+}
+.xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical {
+  width: 3px !important;
+  right: 3px !important;
+  pointer-events: none !important;
+}
+.xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical .xterm-slider {
+  width: 3px !important;
+  background: rgb(var(--custom-theme-color)) !important;
+  left: auto !important; 
+  right: 0 !important; 
+  transition: background-color 0.3s ease !important;
+}
+
+/* =========================================
+  5. 冗余 UI 清理
+========================================= */
+/* 5.1 隐藏标尺画布 */
+.monaco-editor .decorationsOverviewRuler,
+.xterm-decoration-overview-ruler {
+  display: none !important;
+}
+
+/* 5.2 隐藏原生投影 */
 .monaco-scrollable-element > .shadow,
 .monaco-scrollable-element > .shadow.top,
 .monaco-scrollable-element > .shadow.top-left-corner,
