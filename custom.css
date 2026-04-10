@@ -73,6 +73,7 @@
 .xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical {
   width: 3px !important;
   right: 3px !important;
+  pointer-events: none !important;
 }
 
 /* 4.3 终端滑块细化与着色 */
