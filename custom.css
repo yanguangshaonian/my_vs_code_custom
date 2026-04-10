@@ -14,7 +14,7 @@
 /* 2.1 标签页 (Tab) 样式：圆角高度与过渡动画 */
 .monaco-workbench .part.editor .tabs-container > .tab {
   height: var(--custom-editor-tab-height) !important;
-  border-radius: 0 0 10px 10px !important;
+  border-radius: 0 0 15px 15px !important;
   transition: background-color 0.3s ease, color 0.3s ease !important;
 }
 
@@ -98,4 +98,33 @@
 .monaco-editor .decorationsOverviewRuler,
 .xterm-decoration-overview-ruler {
   display: none !important;
+}
+
+.monaco-workbench .part.statusbar {
+  clip-path: inset(0 round 15px 15px 0 0) !important;
+}
+
+
+/* =========================================
+   补充：底部面板区 (终端/问题/输出) 四周圆角与卡片化
+========================================= */
+
+/* 给整个底部面板强制裁剪出四周 10px 的圆角 */
+.monaco-workbench .part.panel {
+  clip-path: inset(0 round 15px) !important;
+  }
+
+/* 1. 给右侧整个代码编辑区 (Editor) 四周加上 10px 圆角 */
+.monaco-workbench .part.editor {
+  clip-path: inset(0 round 15px) !important;
+}
+
+/* 2. 给左侧的侧边栏 (Sidebar - 资源管理器等) 加上四周 10px 圆角 */
+.monaco-workbench .part.sidebar {
+  clip-path: inset(0 round 15px) !important;
+}
+
+/* 3. (可选) 如果您的 VS Code 依然保留了最左侧竖排的传统“活动栏 (Activity Bar)”，也给它加上圆角 */
+.monaco-workbench .part.activitybar {
+  clip-path: inset(0 round 15px) !important;
 }
