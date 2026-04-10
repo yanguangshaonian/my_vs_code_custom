@@ -1,202 +1,86 @@
 :root {
-  --custom-title-height: 25px;
-  /* --custom_theme-color: 255, 69, 116; */
-  --custom_theme-color: 3, 191, 196;
+  /* 核心主题色：青色 */
+  --custom-theme-color: 3, 191, 196;
+  /* 编辑区标签页高度 */
+  --custom-editor-tab-height: 35px; 
 }
 
-/* 滚动条细化 */
-.slider {
-  position: absolute !important;
-  width: 3px !important;
-  background: rgb(var(--custom_theme-color)) !important;
-
-  left: auto !important;
-  right: 3px !important;
-  transition: all 0.3s ease !important;
-}
-
-/* 滚动条不再响应事件 */
-div[role="presentation"][aria-hidden="true"][style*="right: 0px;"] {
+/* =========================================
+   1. 全局滚动条美化与劫持 (应用于所有区域)
+========================================= */
+/* 劫持并禁用所有垂直滚动条轨道的鼠标事件 */
+.monaco-scrollable-element > .scrollbar.vertical {
   pointer-events: none !important;
 }
 
-/* 文件列左侧滚动条取消显示 (这个注释一打开会导致 右侧滚动条没动画了) */
-div.monaco-scrollable-element>div.invisible.scrollbar.vertical {
-  /* display: none; */
+/* 滑块样式重写：细化与主题色注入 */
+.monaco-scrollable-element > .scrollbar > .slider {
+  position: absolute !important;
+  width: 3px !important;
+  background: rgb(var(--custom-theme-color)) !important;
+  left: auto !important;
+  right: 3px !important;
+  /* 仅对颜色和位置进行过渡，优化渲染性能 */
+  transition: background-color 0.3s ease, right 0.3s ease !important;
 }
 
-/* 右侧滚动栏边框取消显示 */
-div.split-view-container>div>div>div.editor-container>div>div>div.overflow-guard>div.monaco-scrollable-element.editor-scrollable.vs>canvas {
+/* =========================================
+   2. 隐藏冗余视觉元素 (全局)
+========================================= */
+/* 隐藏编辑器右侧概览标尺、终端滚动标尺、右上角布局控制按钮、标签栏操作按钮 */
+.monaco-editor .decorationsOverviewRuler,
+.xterm-decoration-overview-ruler,
+.titlebar-right > .layout-controls-container,
+.editor-actions {
   display: none !important;
 }
 
-/* 终端滚动栏边框取消显示 */
-canvas.xterm-decoration-overview-ruler {
-  display: none !important;
+/* =========================================
+   3. 编辑区 (Editor) 专属样式美化
+========================================= */
+/* 标签页整体高度限制与过渡动画 */
+.monaco-workbench .part.editor .tabs-container > .tab {
+  height: var(--custom-editor-tab-height) !important;
+  border-radius: 0 0 10px 10px !important;
+  transition: background-color 0.3s ease, color 0.3s ease !important;
 }
 
-/* 面包屑修复右侧漏出下面的文字的问题 */
-div>div.overflow-guard>div.overlayWidgets>div.sticky-widget {
+/* 激活状态的标签页主题色 */
+.monaco-workbench .part.editor .tabs-container > .tab.active {
+  border-right: 1px solid rgba(0, 0, 0, 0.2) !important;
+  color: #ffffff !important;
+  background-color: rgba(var(--custom-theme-color), 0.6) !important;
+}
+
+/* =========================================
+   4. 编辑区卡片化边界 (安全方案)
+========================================= */
+/* 使用内阴影为整个编辑区绘制一圈青色边框，绝对不改变 width/height/margin，保证不白屏 */
+.monaco-workbench .part.editor {
+  box-shadow: 
+    inset 0 1px 0 0 rgba(var(--custom-theme-color), 0.3), /* 顶边 */
+    inset 1px 0 0 0 rgba(var(--custom-theme-color), 0.3), /* 左边 */
+    inset -1px 0 0 0 rgba(var(--custom-theme-color), 0.3), /* 右边 */
+    inset 0 -1px 0 0 rgba(var(--custom-theme-color), 0.3) !important; /* 底边 */
+}
+
+/* 确保内部容器透明，防止遮挡上面设置的阴影边框 */
+.monaco-workbench .part.editor > .content {
+  background-color: transparent !important;
+}
+
+/* 修复面包屑溢出文字截断 */
+.monaco-editor .sticky-widget {
   width: 100% !important;
 }
 
-
-/* 最顶部圆角化 */
-.titlebar {
-  /* border-radius: 0 0 10px 10px !important;
-  overflow: hidden; */
-  clip-path: inset(0 round 0 0 10px 10px);
+/* =========================================
+   5. 面板区 (Panel/终端) 视觉点缀
+========================================= */
+/* 底部面板选项卡激活指示器 (红色下划线改主题色) */
+.monaco-workbench .part.panel .action-item.checked .active-item-indicator::before {
+  border-top-color: rgb(var(--custom-theme-color)) !important;
 }
-
-/* 顶部tab的文件列表 */
-div.monaco-scrollable-element>div.tabs-container>* {
-  border-bottom-right-radius: 10px !important;
-  transition: all 0.3s ease !important;
-}
-
-/* 左侧布局的文件搜索git插件的高度 */
-div.composite.has-composite-bar.header-or-footer.header {
-  height: var(--custom-title-height) !important;
-}
-
-/* 左侧新建文件和文件夹的高度 */
-.sidebar>div.composite.title {
-  height: var(--custom-title-height) !important;
-  line-height: var(--custom-title-height) !important;
-}
-
-.sidebar>div.composite.title * {
-  height: var(--custom-title-height) !important;
-  line-height: var(--custom-title-height) !important;
-}
-
-/* 左侧资源管理高度问题修正 */
-.sidebar>div.content {
-  height: calc(100% - var(--custom-title-height) * 2) !important;
-  /* 减去 文件搜索插件/新建文件新建文件夹那两行的高度 */
-}
-
-/* 左侧资源管理高度问题修正 */
-.composite.viewlet>div>div>div.monaco-scrollable-element>div.split-view-container>div {
-  height: 100% !important;
-}
-
-
-/* 左侧打开的文件 横向列表的高度 */
-.title.tabs.show-file-icons {
-  --editor-group-tab-height: var(--custom-title-height) !important;
-}
-
-
-/* 活动视图切换器 终端 问题 输出 端口 调试控制台的高度 */
-div.composite.title.has-composite-bar>* {
-  height: var(--custom-title-height) !important;
-}
-
-div.composite.title.has-composite-bar {
-  height: var(--custom-title-height) !important;
-}
-
-
-/* 顶部的文件名列表 */
-.tabs-container>.tab.tab-actions-right.sizing-fit.has-icon.selected.active {
-  border-right: 1px solid rgba(0, 0, 0, 0.2) !important;
-  color: #ffffff !important;
-  background-color: rgba(var(--custom_theme-color), 0.6) !important;
-}
-
-/* 顶部的文件名列表 鼠标悬停时*/
-/* .tabs-container > .tab.tab-actions-right.sizing-fit.has-icon:not(.active):not(.selected):hover { */
-div.monaco-scrollable-element>div.tabs-container>*:hover {
-  /* color: rgb(var(--custom_theme-color)) !important; */
-  /* background-color: rgba(var(--custom_theme-color), 0.4) !important; */
-}
-
-/* 最顶部状态右侧的设置图标 */
-div>div.titlebar-right>div>div {
-  display: none;
-}
-
-/* 顶部文件名那一行最右侧的 三个点 */
-div.tabs-and-actions-container>div.editor-actions {
-  display: none;
-}
-
-
-/* 两边布局 */
-.split-view-container>.split-view-view.visible>.part.sidebar.left.pane-composite-part {
-  margin-left: 0px !important;
-  margin-top: 1px !important;
-  margin-bottom: 1px !important;
-  margin-right: 1px !important;
-  height: calc(100% - 2px) !important;
-
-  /* border-radius: 10px !important; */
-  box-sizing: border-box !important;
-  border: 1px solid rgba(var(--custom_theme-color), 0.2) !important;
-  border-left: 0 !important;
-  /* overflow: hidden !important; */
-}
-
-/* 右侧功能栏下面有一行无用信息 */
-#workbench\.parts\.sidebar>div.composite.title {
-  display: none !important;
-}
-
-/* 编辑区 */
-.split-view-container>.split-view-view.visible>.monaco-grid-branch-node>.monaco-split-view2.vertical {
-  margin-bottom: 1px !important;
-  margin-left: 1px !important;
-  margin-top: 1px !important;
-  height: calc(100% - 2px) !important;
-
-  /* border-radius: 10px !important; */
-  box-sizing: border-box !important;
-  border: 1px solid rgba(var(--custom_theme-color), 0.3) !important;
-  border-right: 0 !important;
-}
-
-
-
-/* 编辑区行号不要贴左侧太近  设置这个会导致右边的滑动条异常 */
-div.monaco-scrollable-element>div.split-view-container>div>div>div.editor-container {
-  /* margin-left: 10px !important; */
-  /* padding-left: 10px !important; */
-}
-
-/* 下方 问题输出调试控制台终端 选中的时候拥有红色下划线 */
-#workbench\.parts\.panel li.action-item.checked>div.active-item-indicator::before {
-  border-top-color: rgb(var(--custom_theme-color)) !important;
-}
-
-/* 最下方的行信息列信息以及编码信息横条 */
-div.monaco-grid-view>div>div>div.monaco-scrollable-element>div.split-view-container>div:nth-child(4) {
-  /* border-radius: 10px 10px 0 0 !important; */
-  /* overflow: hidden !important; */
-
-  clip-path: inset(0 round 10px 10px 0 0);
-}
-
-div.monaco-scrollable-element.mac>div.split-view-container>div:nth-child(2)>div:first-child {
-  height: 100% !important;
-}
-
-#workbench\.parts\.panel>div.content {
-  height: calc(100% - var(--custom-title-height) - 5px) !important
-}
-
-/* 输出选项的滚动条侧边禁止显示 */
-div.overflow-guard>div.monaco-scrollable-element.editor-scrollable.vs.mac>canvas {
-  display: none !important;
-}
-
-
-/* 类型注释 加个圆角 */
-span[class*="dyn-rule-"] {
-  background: none;
-  /* border-radius: 5px !important; */
-}
-
 
 /* 鼠标样式 */
 /* #cursor {
