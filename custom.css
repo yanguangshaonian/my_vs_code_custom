@@ -72,6 +72,7 @@
 /* 4.2 终端滚动条轨道：强制压缩至 3px 宽度 */
 .xterm .xterm-scrollable-element .xterm-scrollbar.xterm-vertical {
   width: 3px !important;
+  right: 3px !important;
 }
 
 /* 4.3 终端滑块细化与着色 */
