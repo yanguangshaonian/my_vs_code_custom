@@ -164,8 +164,10 @@
         // C++ 默认代码格式化工具指定为 clangd
         "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
         // C++ 文件保存时自动执行格式化
-        "editor.formatOnSave": true
+        "editor.formatOnSave": true,
     },
+    // 开启编辑器对语义高亮的接受
+    "editor.semanticHighlighting.enabled": true,
     
     // 编译相关
     "cmake.buildDirectory": "${workspaceFolder}/cmake-build-${buildType}",
