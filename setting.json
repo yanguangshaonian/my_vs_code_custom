@@ -32,6 +32,17 @@
     // 全局颜色主题
     "workbench.colorTheme": "Eva Light",
     // "workbench.iconTheme": "Eva Light Icons",
+
+    // 覆写特定主题下的语义令牌颜色
+    "editor.semanticTokenColorCustomizations": {
+        "[Eva Light]": {
+            "enabled": true,
+            "rules": {
+                // 将所有被识别为 Type (如 my_int, f32) 的语义词染成你想要的粉紫色
+                "type": "#ef8ed8"
+            }
+        }
+    },
     
     "workbench.colorCustomizations": {
         // 设置正常状态下的内嵌提示背景为完全透明
@@ -114,6 +125,9 @@
     // 高亮当前激活作用域的缩进层级参考线
     "editor.guides.highlightActiveIndentation": true,
 
+    "editor.hover.showLongLineWarning": false,
+
+
     // ==========================================
     // 4. 终端设置 (Terminal)
     // ==========================================
@@ -156,6 +170,10 @@
     // ssh配置文件
     "remote.SSH.configFile": "/Users/yanguangshaonian/Documents/vs_code_config/ssh.conf",
     // "remote.SSH.configFile": "V:\\ssh.conf",
+    "remote.SSH.remotePlatform": {
+        "100.106.171.116": "linux"
+    },
+
     // ==========================================
     // 7. 语言特定环境与编译工具 (Language & Build)
     // ==========================================
@@ -260,6 +278,16 @@
     "chat.viewTitle.enabled": false,
     // 禁用 Chat 交互过程中的功能提示 (Tips)
     "chat.tips.enabled": false,
+    "chat.viewSessions.orientation": "stacked",
+    "chat.tools.urls.autoApprove": {
+        "https://code.visualstudio.com": true,
+        "https://github.com/microsoft/vscode/wiki/*": true,
+        "https://*.huanshoulv.com": true,
+        "https://h5stockserver.huanshoulv.com": {
+            "approveRequest": true,
+            "approveResponse": false
+        }
+    },
 
     // ==========================================
     // 9. 自定义扩展与动画 (Custom CSS/JS)
@@ -271,20 +299,9 @@
         "https://raw.githubusercontent.com/yanguangshaonian/my_vs_code_custom/refs/heads/main/custom.css"
         // "https://raw.githubusercontent.com/yanguangshaonian/Neovide-Cursor/refs/heads/main/neovide-cursor.js"
     ],
-    "chat.viewSessions.orientation": "stacked",
-    "remote.SSH.remotePlatform": {
-        "100.106.171.116": "linux"
-    },
-    "chat.tools.urls.autoApprove": {
-        "https://code.visualstudio.com": true,
-        "https://github.com/microsoft/vscode/wiki/*": true,
-        "https://*.huanshoulv.com": true,
-        "https://h5stockserver.huanshoulv.com": {
-            "approveRequest": true,
-            "approveResponse": false
-        }
-    },
-    "editor.hover.showLongLineWarning": false,
+    
+    
+
 
     // ==========================================
     // 10. 已注释的作废或备用配置 (Ignored/Backup)
