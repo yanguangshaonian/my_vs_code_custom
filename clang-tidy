@@ -1,0 +1,30 @@
+Checks: >
+  -*,
+  bugprone-narrowing-conversions,
+  bugprone-implicit-widening-of-multiplication-result,
+  readability-implicit-bool-conversion,
+  modernize-use-auto,
+  modernize-avoid-c-style-cast,
+  google-explicit-constructor,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  # cppcoreguidelines-pro-type-reinterpret-cast,
+  clang-diagnostic-conversion,
+  clang-diagnostic-sign-conversion,
+  clang-diagnostic-sign-compare,
+  clang-diagnostic-double-promotion,
+  clang-diagnostic-narrowing,
+  clang-diagnostic-implicit-int-conversion,
+  clang-diagnostic-shorten-64-to-32
+
+WarningsAsErrors: "*"
+
+CheckOptions:
+  - key: bugprone-narrowing-conversions.PedanticMode
+    value: true
+  - key: bugprone-narrowing-conversions.WarnOnFloatingPointNarrowingConversion
+    value: true
+
+  - key: readability-implicit-bool-conversion.AllowIntegerConditions
+    value: false
+  - key: readability-implicit-bool-conversion.AllowPointerConditions
+    value: false

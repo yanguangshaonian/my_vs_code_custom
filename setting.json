@@ -1,0 +1,301 @@
+{
+    "window.zoomLevel": 1,
+    "window.customTitleBarVisibility": "windowed",
+    // 关闭窗口顶部居中的命令中心搜索栏
+    "window.commandCenter": false,
+    // 启动时不显示欢迎页
+    "workbench.startupEditor": "none",
+    // 字体平滑/抗锯齿模式，使字体显示更细腻
+    "workbench.fontAliasing": "antialiased",
+    // 活动栏 (Activity Bar) 位置移至顶部
+    "workbench.activityBar.location": "top",
+    // 默认隐藏辅助侧边栏
+    "workbench.secondarySideBar.defaultVisibility": "hidden",
+    // 禁用预览模式 (单击文件直接永久打开，而非斜体临时预览)
+    "workbench.editor.enablePreview": false,
+    // 静默视图行为控制 (如：防止输出面板自动频繁弹出干扰焦点)
+    "workbench.view.showQuietly": {
+        "workbench.panel.output": false
+    },
+    // 手动更新模式，避免后台自动更新打断工作流
+    "update.mode": "manual",
+
+    // --- 1. 隐藏多余 UI 元素 ---
+    // 隐藏右上角的布局控制按钮
+    "workbench.layoutControl.enabled": false,
+    // 隐藏文件标签页右侧的更多操作（三个点、拆分编辑器等）
+    "workbench.editor.editorActionsLocation": "hidden",
+
+    // ==========================================
+    // 2. 主题与颜色自定义 (Theme & Colors)
+    // ==========================================
+    // 全局颜色主题
+    "workbench.colorTheme": "Eva Light",
+    // "workbench.iconTheme": "Eva Light Icons",
+    
+    "workbench.colorCustomizations": {
+        // 设置正常状态下的内嵌提示背景为完全透明
+        "editorInlayHint.background": "#00000000",
+        // 如果需要，也可以设置提示文字的颜色使其不那么刺眼
+        "editorInlayHint.foreground": "#888888",
+        // 设置类型提示（如变量类型）的背景为透明
+        "editorInlayHint.typeBackground": "#00000000",
+        // 设置参数提示（如函数传参名）的背景为透明
+        "editorInlayHint.parameterBackground": "#00000000",
+
+        // 滚动条青色化 (静止 / 悬停 / 激活拖动)
+        "scrollbarSlider.background": "#03bfc488",
+        "scrollbarSlider.hoverBackground": "#03bfc4bb",
+        "scrollbarSlider.activeBackground": "#03bfc4ee",
+        // 编辑区标签页 (Tab) 选中状态美化
+        "tab.activeBackground": "#03bfc499",
+        "tab.activeForeground": "#ffffff",
+        "tab.activeBorderRight": "#00000033",
+        // 底部面板 (终端/输出) 激活指示器 (青色下划线)
+        "panelTitle.activeBorder": "#03BFC4",
+        // 将概览标尺背景完全透明化，配合上方的 overviewRulerBorder 相当于隐藏
+        "editorOverviewRuler.background": "#00000000",
+        // 侧边栏顶部：活动视图切换器（资源管理器/搜索等）的选中下划线
+        "activityBarTop.activeBorder": "#03BFC4",
+        // 如果您未来把活动栏放回最左侧竖排，这个是左侧的选中竖线
+        "activityBar.activeBorder": "#03BFC4"
+    },
+
+    // ==========================================
+    // 3. 编辑器基础与行为控制 (Editor Behavior)
+    // ==========================================
+    // 编辑器字体种类与回退链
+    "editor.fontFamily": "'LXGW WenKai Mono',Menlo, Monaco, 'Courier New', monospace",
+    // 编辑器字体大小
+    "editor.fontSize": 20,
+    // "editor.fontSize": 24,
+    // 全局保存时是否自动格式化 (在下方特定语言中覆写)
+    "editor.formatOnSave": false,
+    // 禁用拖拽文本移动，防止误触导致代码错乱
+    "editor.dragAndDrop": false,
+    // 禁用非基础 ASCII 字符的高亮警告 (中文注释或字符串不报黄)
+    "editor.unicodeHighlight.nonBasicASCII": false,
+    // 差异比较 (Diff) 时不要忽略行尾空格
+    "diffEditor.ignoreTrimWhitespace": false,
+    
+    // 光标闪烁动画风格 (平滑褪色)
+    "editor.cursorBlinking": "smooth",
+    // 开启平滑的光标移动动画体验
+    "editor.cursorSmoothCaretAnimation": "on",
+
+    // 关闭代码小地图
+    "editor.minimap.enabled": false,
+    // 关闭行号左侧的装饰条空隙 (如断点区)
+    "editor.glyphMargin": false,
+    // 关闭代码建议的悬浮小黄灯泡
+    "editor.lightbulb.enabled": "off",
+    // 隐藏底部水平滚动条
+    "editor.scrollbar.horizontal": "hidden",
+    // 关闭编辑器右侧概览标尺的边框
+    "editor.overviewRulerBorder": false,
+    
+    // --- 2. 滚动条尺寸控制 ---
+    // 原生接管滚动条宽度，将其细化为 3px
+    "editor.scrollbar.verticalScrollbarSize": 3,
+    "editor.scrollbar.horizontalScrollbarSize": 3,
+
+    // 打开面包屑
+    "editor.stickyScroll.defaultModel": "foldingProviderModel",
+
+    // 括号相关设置
+    // 高亮附近匹配的括号
+    "editor.matchBrackets": "near",
+    // 启用括号对参考线
+    "editor.guides.bracketPairs": "active",
+    // 启用括号对彩色化
+    "editor.bracketPairColorization.enabled": true,
+    // 启用水平括号参考线
+    "editor.guides.bracketPairsHorizontal": true,
+    // 高亮当前激活作用域的缩进层级参考线
+    "editor.guides.highlightActiveIndentation": true,
+
+    // ==========================================
+    // 4. 终端设置 (Terminal)
+    // ==========================================
+    // 终端字体大小
+    "terminal.integrated.fontSize": 16,
+    // "terminal.integrated.fontSize": 20,
+    // 终端文本最小对比度调整
+    "terminal.integrated.minimumContrastRatio": 3,
+    // 终端光标样式（竖线）
+    "terminal.integrated.cursorStyle": "line",
+    // 终端未激活时光标样式
+    "terminal.integrated.cursorStyleInactive": "line",
+    // 终端光标允许闪烁
+    "terminal.integrated.cursorBlinking": true,
+    // 终端输出平滑滚动
+    "terminal.integrated.smoothScrolling": true,
+    // 隐藏终端打开时的初始功能提示
+    "terminal.integrated.initialHint": false,
+
+    // ==========================================
+    // 5. 文件与工作区同步 (Files & Workspace)
+    // ==========================================
+    // 自动保存策略（延迟保存）
+    "files.autoSave": "afterDelay",
+    // 自动保存延迟时间（10000毫秒 / 10秒）
+    "files.autoSaveDelay": 10000,
+    // 仅自动保存工作区内的文件，忽略外部文件
+    "files.autoSaveWorkspaceFilesOnly": true,
+    // 允许在不信任的工作区打开文件时不弹出受限模式警告
+    "security.workspace.trust.untrustedFiles": "open",
+    // 设置同步：忽略同步的扩展列表
+    "settingsSync.ignoredExtensions": [],
+
+    // ==========================================
+    // 6. 版本控制与远程连接 (Git & SSH)
+    // ==========================================
+    // Git 智能提交（工作区无暂存内容时，自动暂存所有更改并提交）
+    "git.enableSmartCommit": true,
+    
+    // ssh配置文件
+    "remote.SSH.configFile": "/Users/yanguangshaonian/Documents/vs_code_config/ssh.conf",
+    // "remote.SSH.configFile": "V:\\ssh.conf",
+    // ==========================================
+    // 7. 语言特定环境与编译工具 (Language & Build)
+    // ==========================================
+    // --- C / C++ (CMake & Clangd) ---
+    "[cpp]": {
+        // C++ 默认代码格式化工具指定为 clangd
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
+        // C++ 文件保存时自动执行格式化
+        "editor.formatOnSave": true
+    },
+    
+    // 编译相关
+    "cmake.buildDirectory": "${workspaceFolder}/cmake-build-${buildType}",
+    // CMake 构建时不提示“未保存所有文档”的问题提示
+    "cmake.showNotAllDocumentsSavedQuestion": false,
+    "cmake.configureArgs": [
+        // 开启此选项才会生成 cmake的json文件给clangd用
+        "-DCMAKE_EXPORT_COMPILE_COMMANDS=ON"
+    ],
+    
+    // 语法提示
+    // "clangd.path": "${userHome}/.python_env/bin/python",
+    "clangd.arguments": [
+        // "-u",
+        // "/Users/yanguangshaonian/Documents/vs_code_config/clangd.py",
+        // "--pretty",  让日志更好度
+        // "--log=verbose",  让日志更详细
+        "--compile-commands-dir=cmake-build-Debug",
+        "--query-driver=/usr/bin/g++",
+        "--background-index",
+        "--clang-tidy",
+        "--completion-style=detailed",
+        "--pch-storage=memory",
+        "--all-scopes-completion",
+        "--header-insertion=iwyu"
+        // "--clang-tidy-checks=*",  不支持了
+        // "--folding-ranges",  不支持了
+        // "--limit-results=0",
+        // "--background-index",
+        // "--completion-style=detailed",
+        // "--log=verbose"
+    ],
+
+    // --- Python ---
+    // Python 默认解释器路径
+    "python.defaultInterpreterPath": "~/.python_env/bin/python",
+    // 始终显示 Python 解释器状态信息
+    "python.interpreter.infoVisibility": "always",
+    // Python 虚拟环境基础路径
+    "python.venvPath": "~/.python_env",
+    // 识别为虚拟环境的具体目录配置
+    "python.venvFolders": [
+        "~/.python_env"
+    ],
+    // Pylance 类型检查模式 (基本)
+    "python.analysis.typeCheckingMode": "basic",
+    // 启用自动导入补全
+    "python.analysis.autoImportCompletions": true,
+    // 补全函数时自动添加括号
+    "python.analysis.completeFunctionParens": true,
+    // 自动格式化包含变量的 f-string 字符串
+    "python.analysis.autoFormatStrings": true,
+    // 显示所有的函数调用参数名称提示 (Inlay Hints)
+    "python.analysis.inlayHints.callArgumentNames": "all",
+    // 显示函数返回类型的内嵌提示
+    "python.analysis.inlayHints.functionReturnTypes": true,
+    // 显示 Pytest 测试框架的参数提示
+    "python.analysis.inlayHints.pytestParameters": true,
+    // 显示变量类型的内嵌提示
+    "python.analysis.inlayHints.variableTypes": true,
+    // 对字典、列表、集合启用严格的类型推断
+    "python.analysis.typeEvaluation.strictDictionaryInference": true,
+    "python.analysis.typeEvaluation.strictListInference": true,
+    "python.analysis.typeEvaluation.strictSetInference": true,
+
+    // --- Markdown & 其他格式 ---
+    // 编辑时自动切分显示 Markdown 预览
+    "markdown-preview-enhanced.automaticallyShowPreviewOfMarkdownBeingEdited": true,
+    // Drawio 图像缩放策略（原生）
+    "hediet.vscode-drawio.resizeImages": null,
+
+    // ==========================================
+    // 8. AI 助手 (Copilot & Chat)
+    // ==========================================
+    // Copilot 针对不同类型文件的启用状态控制
+    "github.copilot.enable": {
+        "*": true,
+        "plaintext": false,
+        "markdown": true,
+        "scminput": false
+    },
+    // 开启 Copilot 预测并建议下一步编辑的功能
+    "github.copilot.nextEditSuggestions.enabled": true,
+    
+    // 禁用主命令中心的 Chat 入口
+    "chat.commandCenter.enabled": false,
+    // 禁用 Chat 聊天视图的欢迎说明区域
+    "chat.viewWelcome.enabled": false,
+    // 禁用 Chat 顶部的标题视图区域
+    "chat.viewTitle.enabled": false,
+    // 禁用 Chat 交互过程中的功能提示 (Tips)
+    "chat.tips.enabled": false,
+
+    // ==========================================
+    // 9. 自定义扩展与动画 (Custom CSS/JS)
+    // ==========================================
+    // 动画相关
+    "vscode_custom_css.imports": [
+        // "file:///${userHome}/Documents/vs_code_config/my_vs_code_custom/custom.css"
+        // "file:///${userHome}/Documents/vs_code_config/custom.js",
+        "https://raw.githubusercontent.com/yanguangshaonian/my_vs_code_custom/refs/heads/main/custom.css"
+        // "https://raw.githubusercontent.com/yanguangshaonian/Neovide-Cursor/refs/heads/main/neovide-cursor.js"
+    ],
+    "chat.viewSessions.orientation": "stacked",
+    "remote.SSH.remotePlatform": {
+        "100.106.171.116": "linux"
+    },
+    "chat.tools.urls.autoApprove": {
+        "https://code.visualstudio.com": true,
+        "https://github.com/microsoft/vscode/wiki/*": true,
+        "https://*.huanshoulv.com": true,
+        "https://h5stockserver.huanshoulv.com": {
+            "approveRequest": true,
+            "approveResponse": false
+        }
+    },
+    "editor.hover.showLongLineWarning": false,
+
+    // ==========================================
+    // 10. 已注释的作废或备用配置 (Ignored/Backup)
+    // ==========================================
+    // "workbench.layoutControl.enabled": false,
+    // "settingsSync.ignoredSettings": [
+    //     "-python.interpreter.infoVisibility",
+    //     "-python.defaultInterpreterPath",
+    //     "-python.analysis.enableEditableInstalls",
+    //     "-python.analysis.nodeExecutable",
+    //     "-python.analysis.nodeArguments",
+    //     "-python.activeStateToolPath",
+    //     "-python.venvPath",
+    //     "-python.venvFolders"
+    // ],
+}

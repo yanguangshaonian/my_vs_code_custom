@@ -1,0 +1,112 @@
+
+# 基础样式基于 LLVM，因为它是最灵活的基准，方便覆盖
+BasedOnStyle: LLVM
+
+# --- 语言与版本 ---
+Language: Cpp
+# 强制使用最新标准 (C++20/23) 的解析特性
+Standard: Latest
+
+# --- 缩进配置 (Indentation) ---
+# Rider: INDENT_SIZE = 4
+IndentWidth: 4
+# Rider: TAB_WIDTH = 4
+TabWidth: 4
+# Rider: INDENT_STYLE = Space
+UseTab: Never
+# 续行缩进，通常设为缩进宽度的1倍或2倍，这里保持一致性
+ContinuationIndentWidth: 4
+# Rider: INDENT_ACCESS_SPECIFIERS_FROM_CLASS = true
+# true 表示 public/private 会比 class 缩进一级
+IndentAccessModifiers: true
+# 访问修饰符的偏移量，配合 IndentAccessModifiers 使用
+AccessModifierOffset: -4
+# Rider: INDENT_CASE_FROM_SWITCH = true
+IndentCaseLabels: true
+# 命名空间缩进：Rider 设置为 All
+NamespaceIndentation: All
+
+# --- 大括号换行规则 (Brace Wrapping) ---
+# Rider: TYPE_DECLARATION_BRACES, OTHER_BRACES 等均为 END_OF_LINE
+# Attach 模式对应 K&R 风格，左大括号不换行
+BreakBeforeBraces: Attach
+# 针对 Attach 模式的微调，确保所有结构都紧跟
+BraceWrapping:
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  AfterExternBlock: false
+  BeforeCatch: false
+  BeforeElse: false
+
+# --- 空格规则 (Spacing) ---
+# Rider: SPACE_AFTER_CAST_EXPRESSION_PARENTHESES = true
+# 示例: (int) i
+SpaceAfterCStyleCast: true
+# 逻辑非 ! 后不加空格
+SpaceAfterLogicalNot: false
+# 模板关键字后不加空格 template<...>
+SpaceAfterTemplateKeyword: false
+# 赋值运算符前加空格 (=, +=)
+SpaceBeforeAssignmentOperators: true
+# 控制流语句 (if, for) 圆括号前加空格
+SpaceBeforeParens: ControlStatements
+# Rider: SPACE_WITHIN_EMPTY_INITIALIZER_BRACES = false
+SpaceInEmptyBlock: false
+# 方括号内不加空格 [x]
+SpacesInSquareBrackets: false
+
+# --- 对齐与指针 (Alignment & Pointers) ---
+# Rider: SPACE_AFTER_PTR_IN_DATA_MEMBERS = true (Type* Name)
+PointerAlignment: Left
+# Rider: ALIGN_MULTILINE_BINARY_EXPRESSIONS_CHAIN = true
+# 二元表达式换行时对齐操作数
+AlignOperands: Align
+# Rider: ALIGN_MULTILINE_PARAMETER = true
+# 函数参数换行时对齐到左圆括号后
+AlignAfterOpenBracket: Align
+# 连续赋值不对齐 (Rider XML未明确开启，保持默认)
+AlignConsecutiveAssignments: None
+# 连续声明不对齐
+AlignConsecutiveDeclarations: None
+# 尾随注释对齐
+AlignTrailingComments: true
+
+# --- 换行限制 (Breaking) ---
+# Rider: KEEP_BLANK_LINES_IN_CODE = 2
+MaxEmptyLinesToKeep: 2
+# 允许短函数在同一行 (Rider: SIMPLE_BLOCK_STYLE = LINE_BREAK 意味着不允许，设为 None)
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+# Rider: WRAP_AFTER_BINARY_OPSIGN = true (操作符在行尾)
+# Clang: BreakBeforeBinaryOperators: None 意味着操作符不会被放到下一行行首
+BreakBeforeBinaryOperators: None
+# Rider: WRAP_BEFORE_TERNARY_OPSIGNS = true
+BreakBeforeTernaryOperators: true
+BreakAfterAttributes: Always
+
+# --- 其他 (Misc) ---
+# 防止 clang-format 破坏编译宏逻辑
+AllowShortBlocksOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+# 构造函数初始化列表的样式
+BreakConstructorInitializers: BeforeComma
+
+ColumnLimit: 180
+ReflowComments: Never
+RemoveEmptyLinesInUnwrappedLines: true
+SeparateDefinitionBlocks: Always
+SortIncludes: false
+ReferenceAlignment: Left
+AllowShortEnumsOnASingleLine: false
+AllowShortLambdasOnASingleLine: Empty
+BreakTemplateDeclarations: Yes
+IndentExternBlock: Indent
+
+
+
