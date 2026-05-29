@@ -197,10 +197,11 @@
     ],
     
     // 语法提示
-    // "clangd.path": "${userHome}/.python_env/bin/python",
+    "clangd.path": "/home/yanguangshaonian/.python_env/bin/python",
     "clangd.arguments": [
-        // "-u",
-        // "/Users/yanguangshaonian/Documents/vs_code_config/clangd.py",
+        "-u",
+        "/home/yanguangshaonian/.clangd.py",
+        
         // "--pretty",  让日志更好度
         // "--log=verbose",  让日志更详细
         "--compile-commands-dir=cmake-build-Debug",

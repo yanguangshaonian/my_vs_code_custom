@@ -1,0 +1,7 @@
+CompileFlags:
+  Add:
+    - -std=gnu++17
+
+Diagnostics:
+  Suppress:
+    - invalid_suffix_constant
