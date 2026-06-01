@@ -8,7 +8,9 @@ import json
 import re
 import shlex
 import time
+import traceback
 import urllib.parse
+from collections import deque
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -20,6 +22,7 @@ exit_event = threading.Event()
 REQUEST_TTL_SECONDS = 300.0
 CLEANUP_INTERVAL_MESSAGES = 100
 MAX_ANALYSIS_CACHE = 64
+MAX_RECENT_MESSAGES = 24
 
 # ==================== 状态缓存 ====================
 
@@ -43,9 +46,12 @@ clangd_stdin = None
 clangd_write_lock = threading.RLock()
 client_write_lock = threading.RLock()
 instance_registry_path: str | None = None
+recent_messages = deque(maxlen=MAX_RECENT_MESSAGES)
+shutdown_reason: str | None = None
 
 INTERNAL_REQUEST_PREFIX = "__proxy_internal__"
-INTERNAL_REQUEST_TIMEOUT_SECONDS = 1.0
+INTERNAL_REQUEST_TIMEOUT_SECONDS = 0.25
+DEFINITION_LOOKUP_MISS = object()
 
 internal_request_lock = threading.RLock()
 internal_request_counter = 0
@@ -54,7 +60,7 @@ internal_request_metadata: dict[str, dict[str, Any]] = {}
 
 compile_commands_cache: dict[str, tuple[float, dict[str, str]]] = {}
 compile_commands_entries_cache: dict[str, tuple[float, list[dict[str, Any]]]] = {}
-definition_lookup_cache: dict[tuple[str, int, int, int], str | None] = {}
+definition_lookup_cache: dict[tuple[str, int, int, int], Any] = {}
 
 # inlayHint 请求缓存：id -> {uri, range, time}
 inlay_hint_requests: dict[Any, dict[str, Any]] = {}
@@ -334,6 +340,143 @@ def normalize_workspace_path(path: str | None) -> str | None:
     return os.path.abspath(os.path.expanduser(path))
 
 
+def log_proxy_message(message: str):
+    print(f"[代理日志] {message}", file=sys.stderr, flush=True)
+
+
+def summarize_lsp_message(msg: dict[str, Any]) -> str:
+    msg_id = msg.get("id", "NO_ID")
+    method = msg.get("method", "RESPONSE/UNKNOWN")
+    parts = [f"id={msg_id}", f"method={method}"]
+
+    params = msg.get("params")
+    if isinstance(params, dict):
+        text_document = params.get("textDocument")
+        if isinstance(text_document, dict):
+            uri = text_document.get("uri")
+            if isinstance(uri, str):
+                parts.append(f"uri={uri}")
+            version = text_document.get("version")
+            if isinstance(version, int):
+                parts.append(f"version={version}")
+
+        position = params.get("position")
+        if isinstance(position, dict):
+            line_no = position.get("line")
+            ch = position.get("character")
+            if isinstance(line_no, int) and isinstance(ch, int):
+                parts.append(f"pos={line_no}:{ch}")
+
+        req_range = params.get("range")
+        if isinstance(req_range, dict):
+            start = req_range.get("start")
+            end = req_range.get("end")
+            if isinstance(start, dict) and isinstance(end, dict):
+                s_line = start.get("line")
+                s_ch = start.get("character")
+                e_line = end.get("line")
+                e_ch = end.get("character")
+                if all(isinstance(v, int) for v in (s_line, s_ch, e_line, e_ch)):
+                    parts.append(f"range={s_line}:{s_ch}-{e_line}:{e_ch}")
+
+    result = msg.get("result")
+    if result is not None:
+        parts.append(f"result_type={type(result).__name__}")
+
+    error = msg.get("error")
+    if isinstance(error, dict):
+        code = error.get("code")
+        message = error.get("message")
+        parts.append(f"error={code}:{message}")
+
+    return ", ".join(parts)
+
+
+def remember_recent_message(direction: str, msg: dict[str, Any]):
+    with state_lock:
+        recent_messages.append({
+            "time": time.strftime("%H:%M:%S"),
+            "direction": direction,
+            "summary": summarize_lsp_message(msg),
+        })
+
+
+def format_recent_messages(limit: int = 8) -> str:
+    with state_lock:
+        items = list(recent_messages)[-limit:]
+    if not items:
+        return "无"
+    return "\n".join(
+        f"  - {item['time']} | {item['direction']} | {item['summary']}"
+        for item in items
+    )
+
+
+def format_exception_trace() -> str:
+    return "".join(traceback.format_exc()).strip()
+
+
+def log_exception_with_context(title: str, exc: BaseException, **context: Any):
+    parts = [f"{key}={value}" for key, value in context.items()]
+    detail = ", ".join(parts)
+    if detail:
+        log_proxy_message(f"{title}: type={type(exc).__name__}, error={exc}, {detail}")
+    else:
+        log_proxy_message(f"{title}: type={type(exc).__name__}, error={exc}")
+
+    trace = format_exception_trace()
+    if trace and trace != "NoneType: None":
+        print(trace, file=sys.stderr, flush=True)
+
+    print(
+        "[代理日志] 最近消息:\n" + format_recent_messages(),
+        file=sys.stderr,
+        flush=True,
+    )
+
+
+def install_thread_exception_logging():
+    def _threading_excepthook(args: threading.ExceptHookArgs):
+        parts = [
+            f"thread={args.thread.name if args.thread else 'unknown'}",
+            f"type={args.exc_type.__name__ if args.exc_type else 'unknown'}",
+            f"error={args.exc_value}",
+        ]
+        log_proxy_message("线程异常: " + ", ".join(parts))
+        if args.exc_traceback is not None:
+            print(
+                "".join(traceback.format_exception(args.exc_type, args.exc_value, args.exc_traceback)).strip(),
+                file=sys.stderr,
+                flush=True,
+            )
+        print(
+            "[代理日志] 最近消息:\n" + format_recent_messages(),
+            file=sys.stderr,
+            flush=True,
+        )
+
+    threading.excepthook = _threading_excepthook
+
+
+def request_shutdown(reason: str):
+    global shutdown_reason
+    should_log_recent = False
+    with state_lock:
+        if shutdown_reason is None:
+            shutdown_reason = reason
+            should_log_recent = True
+
+    if should_log_recent:
+        log_proxy_message(f"设置退出事件: reason={reason}")
+        print(
+            "[代理日志] 最近消息:\n" + format_recent_messages(),
+            file=sys.stderr,
+            flush=True,
+        )
+
+    exit_event.set()
+
+
 def compute_instance_registry_path(root_uri: str | None, process_id: int | None) -> str:
     compile_dir = parse_compile_commands_dir_arg() or ""
     key_source = f"{root_uri or ''}|{process_id if isinstance(process_id, int) else ''}|{compile_dir}"
@@ -400,6 +543,9 @@ def register_proxy_instance(root_uri: str | None, process_id: int | None):
         and is_pid_alive(previous_pid)
         and process_looks_like_proxy(previous_pid)
     ):
+        log_proxy_message(
+            f"准备清理旧代理实例: previous_pid={previous_pid}, current_pid={os.getpid()}, registry={registry_path}"
+        )
         try:
             os.kill(previous_pid, signal.SIGTERM)
             deadline = time.monotonic() + 1.0
@@ -419,6 +565,9 @@ def register_proxy_instance(root_uri: str | None, process_id: int | None):
         return
 
     instance_registry_path = registry_path
+    log_proxy_message(
+        f"注册代理实例: pid={os.getpid()}, process_id={process_id}, registry={registry_path}"
+    )
 
 
 def parse_compile_commands_dir_arg() -> str | None:
@@ -954,6 +1103,28 @@ def send_lsp_payload(fd, msg: dict[str, Any]):
     fd.flush()
 
 
+def write_raw_payload(fd, body: bytes):
+    header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
+    fd.write(header)
+    fd.write(body)
+    fd.flush()
+
+
+def write_payload_with_lock(fd, msg: dict[str, Any], lock: threading.RLock):
+    with lock:
+        send_lsp_payload(fd, msg)
+
+
+def read_exactly(fd, total_size: int) -> bytes:
+    chunks = bytearray()
+    while len(chunks) < total_size:
+        chunk = fd.read(total_size - len(chunks))
+        if not chunk:
+            break
+        chunks.extend(chunk)
+    return bytes(chunks)
+
+
 def request_clangd(
     method: str,
     params: dict[str, Any],
@@ -977,18 +1148,35 @@ def request_clangd(
             internal_request_metadata[req_id] = tagged
 
     try:
-        with clangd_write_lock:
-            send_lsp_payload(clangd_stdin, {
-                "jsonrpc": "2.0",
-                "id": req_id,
-                "method": method,
-                "params": params,
-            })
+        write_payload_with_lock(clangd_stdin, {
+            "jsonrpc": "2.0",
+            "id": req_id,
+            "method": method,
+            "params": params,
+        }, clangd_write_lock)
 
         if not waiter["event"].wait(timeout=timeout):
+            log_proxy_message(
+                f"内部请求超时: req_id={req_id}, method={method}, timeout={timeout}, metadata={metadata}"
+            )
+            print(
+                "[代理日志] 最近消息:\n" + format_recent_messages(),
+                file=sys.stderr,
+                flush=True,
+            )
             return None
 
         return waiter["response"]
+    except Exception as e:
+        log_exception_with_context(
+            "内部请求异常",
+            e,
+            req_id=req_id,
+            method=method,
+            timeout=timeout,
+            metadata=metadata,
+        )
+        raise
     finally:
         with internal_request_lock:
             internal_request_waiters.pop(req_id, None)
@@ -1133,7 +1321,10 @@ def lookup_function_type_via_clangd_cached(
 
     cache_key = (uri, line_no, char_no, version)
     if cache_key in definition_lookup_cache:
-        return definition_lookup_cache[cache_key]
+        cached = definition_lookup_cache[cache_key]
+        if cached is DEFINITION_LOOKUP_MISS:
+            return None
+        return cached
 
     if not allow_request:
         return None
@@ -1178,6 +1369,8 @@ def lookup_function_type_via_clangd_cached(
 
     if result_type is not None:
         definition_lookup_cache[cache_key] = result_type
+    else:
+        definition_lookup_cache[cache_key] = DEFINITION_LOOKUP_MISS
     return result_type
 
 
@@ -1273,6 +1466,17 @@ def cleanup_request_caches_if_needed():
 
 def split_lines(text: str) -> list[str]:
     return text.split("\n")
+
+
+def invalidate_uri_caches(uri: str):
+    analysis_cache.pop(uri, None)
+
+    stale_definition_keys = [
+        key for key in definition_lookup_cache
+        if isinstance(key, tuple) and len(key) >= 1 and key[0] == uri
+    ]
+    for key in stale_definition_keys:
+        definition_lookup_cache.pop(key, None)
 
 
 def apply_change(lines: list[str], change: dict[str, Any]) -> list[str]:
@@ -2674,6 +2878,7 @@ def hook_message(direction: str, msg: dict[str, Any]) -> dict[str, Any]:
         file=sys.stderr,
         flush=True,
     )
+    remember_recent_message(direction, msg)
 
     # ==================== VSCode -> Clangd ====================
     if direction == "VSCode -> Clangd":
@@ -2699,7 +2904,7 @@ def hook_message(direction: str, msg: dict[str, Any]) -> dict[str, Any]:
                 with state_lock:
                     documents[uri] = split_lines(text)
                     document_versions[uri] = int(version) if isinstance(version, int) else 0
-                    analysis_cache.pop(uri, None)
+                    invalidate_uri_caches(uri)
 
         # didChange：增量更新文本，并失效分析缓存
         elif method == "textDocument/didChange":
@@ -2724,7 +2929,32 @@ def hook_message(direction: str, msg: dict[str, Any]) -> dict[str, Any]:
                     else:
                         document_versions[uri] = document_versions.get(uri, 0) + 1
 
-                    analysis_cache.pop(uri, None)
+                    invalidate_uri_caches(uri)
+
+        # didSave：用磁盘或客户端提供的最终文本刷新缓存，避免保存后仍然使用旧文档快照
+        elif method == "textDocument/didSave":
+            params = msg.get("params", {})
+            td = params.get("textDocument", {})
+            uri = td.get("uri")
+
+            if uri:
+                saved_text = params.get("text")
+                if not isinstance(saved_text, str):
+                    path = uri_to_path(uri)
+                    if path:
+                        try:
+                            with open(path, "r", encoding="utf-8") as f:
+                                saved_text = f.read()
+                        except Exception:
+                            saved_text = None
+
+                with state_lock:
+                    if isinstance(saved_text, str):
+                        documents[uri] = split_lines(saved_text)
+                    elif uri not in documents:
+                        documents[uri] = [""]
+                    document_versions[uri] = document_versions.get(uri, 0) + 1
+                    invalidate_uri_caches(uri)
 
         # didClose：释放缓存
         elif method == "textDocument/didClose":
@@ -2735,7 +2965,7 @@ def hook_message(direction: str, msg: dict[str, Any]) -> dict[str, Any]:
                 with state_lock:
                     documents.pop(uri, None)
                     document_versions.pop(uri, None)
-                    analysis_cache.pop(uri, None)
+                    invalidate_uri_caches(uri)
 
         # cancelRequest：清理被取消请求，防止长时间运行积累
         elif method == "$/cancelRequest":
@@ -2910,8 +3140,15 @@ def hook_message(direction: str, msg: dict[str, Any]) -> dict[str, Any]:
 # ==================== LSP 转发引擎 ====================
 
 def send_vscode_payload(msg: dict[str, Any]):
-    with client_write_lock:
-        send_lsp_payload(sys.stdout.buffer, msg)
+    try:
+        write_payload_with_lock(sys.stdout.buffer, msg, client_write_lock)
+    except Exception as e:
+        log_exception_with_context(
+            "写回 VSCode 异常",
+            e,
+            summary=summarize_lsp_message(msg),
+        )
+        raise
 
 
 def maybe_short_circuit_client_request(msg: dict[str, Any]) -> bool:
@@ -2958,9 +3195,12 @@ def maybe_short_circuit_client_request(msg: dict[str, Any]) -> bool:
 
 def transfer_with_hook(fd_in: int, fd_out: int, direction: str):
     """带 LSP 报文解析的 I/O 引擎"""
+    last_summary = "无"
+    last_body_len = 0
     try:
-        f_in = os.fdopen(fd_in, "rb", buffering=0)
-        f_out = os.fdopen(fd_out, "wb", buffering=0)
+        # 用 dup 后的 fd 构造局部 file object, 避免线程退出时把共享 pipe 直接关掉.
+        f_in = os.fdopen(os.dup(fd_in), "rb", buffering=0)
+        f_out = os.fdopen(os.dup(fd_out), "wb", buffering=0)
 
         while not exit_event.is_set():
             content_length = None
@@ -2969,6 +3209,10 @@ def transfer_with_hook(fd_in: int, fd_out: int, direction: str):
             while True:
                 line = f_in.readline()
                 if not line:
+                    log_proxy_message(
+                        f"转发线程读到 EOF: direction={direction}, fd_in={fd_in}, fd_out={fd_out}, last_summary={last_summary}, exit_set={exit_event.is_set()}"
+                    )
+                    request_shutdown(f"eof:{direction}")
                     return
 
                 if line in (b"\r\n", b"\n"):
@@ -2985,26 +3229,44 @@ def transfer_with_hook(fd_in: int, fd_out: int, direction: str):
                 continue
 
             # 2. 读取 JSON body
-            body = f_in.read(content_length)
+            body = read_exactly(f_in, content_length)
             if len(body) < content_length:
+                log_proxy_message(
+                    f"转发线程读到短包: direction={direction}, expected={content_length}, actual={len(body)}, last_summary={last_summary}, exit_set={exit_event.is_set()}"
+                )
+                request_shutdown(f"short-read:{direction}")
                 break
 
             # 3. 解析并 Hook
             try:
                 msg = json.loads(body.decode("utf-8"))
+                last_summary = summarize_lsp_message(msg)
+                last_body_len = len(body)
             except Exception as e:
-                print(f"JSON Decode Error: {e}", file=sys.stderr, flush=True)
+                log_exception_with_context(
+                    "JSON 解码异常",
+                    e,
+                    direction=direction,
+                    body_len=len(body),
+                )
 
-                header = f"Content-Length: {len(body)}\r\n\r\n".encode("utf-8")
-                f_out.write(header)
-                f_out.write(body)
-                f_out.flush()
+                if direction == "VSCode -> Clangd":
+                    with clangd_write_lock:
+                        write_raw_payload(f_out, body)
+                else:
+                    with client_write_lock:
+                        write_raw_payload(f_out, body)
                 continue
 
             try:
                 msg = hook_message(direction, msg)
             except Exception as e:
-                print(f"Hook Error: {e}", file=sys.stderr, flush=True)
+                log_exception_with_context(
+                    "Hook 异常",
+                    e,
+                    direction=direction,
+                    summary=last_summary,
+                )
 
             if msg is None:
                 continue
@@ -3018,17 +3280,33 @@ def transfer_with_hook(fd_in: int, fd_out: int, direction: str):
                 ensure_ascii=False,
                 separators=(",", ":"),
             ).encode("utf-8")
+            last_summary = summarize_lsp_message(msg)
+            last_body_len = len(new_body)
 
             new_header = f"Content-Length: {len(new_body)}\r\n\r\n".encode("utf-8")
-
-            f_out.write(new_header)
-            f_out.write(new_body)
-            f_out.flush()
+            if direction == "VSCode -> Clangd":
+                with clangd_write_lock:
+                    f_out.write(new_header)
+                    f_out.write(new_body)
+                    f_out.flush()
+            else:
+                with client_write_lock:
+                    f_out.write(new_header)
+                    f_out.write(new_body)
+                    f_out.flush()
 
     except Exception as e:
-        print(f"Transfer Error [{direction}]: {e}", file=sys.stderr, flush=True)
-    finally:
-        exit_event.set()
+        log_exception_with_context(
+            "转发线程异常",
+            e,
+            direction=direction,
+            fd_in=fd_in,
+            fd_out=fd_out,
+            last_summary=last_summary,
+            last_body_len=last_body_len,
+            exit_set=exit_event.is_set(),
+        )
+        request_shutdown(f"transfer-exception:{direction}:{type(e).__name__}")
 
 
 # ==================== main ====================
@@ -3052,16 +3330,21 @@ def main():
         return 1
 
     clangd_stdin = p.stdin
+    log_proxy_message(
+        f"启动代理: proxy_pid={os.getpid()}, clangd_pid={p.pid}, argv={sys.argv[1:]}"
+    )
 
     t1 = threading.Thread(
         target=transfer_with_hook,
         args=(sys.stdin.fileno(), p.stdin.fileno(), "VSCode -> Clangd"),
+        name="proxy-vscode-to-clangd",
         daemon=True,
     )
 
     t2 = threading.Thread(
         target=transfer_with_hook,
         args=(p.stdout.fileno(), sys.stdout.fileno(), "Clangd -> VSCode"),
+        name="proxy-clangd-to-vscode",
         daemon=True,
     )
 
@@ -3072,27 +3355,44 @@ def main():
         while p.poll() is None and not exit_event.is_set():
             exit_event.wait(timeout=0.1)
     except KeyboardInterrupt:
-        pass
+        request_shutdown("keyboard-interrupt")
     finally:
-        exit_event.set()
+        if not exit_event.is_set() and p.poll() is not None:
+            request_shutdown(f"clangd-exited:returncode={p.poll()}")
 
         if p.poll() is None:
+            log_proxy_message(
+                f"准备终止 clangd 子进程: clangd_pid={p.pid}, shutdown_reason={shutdown_reason}"
+            )
             p.terminate()
             try:
                 p.wait(timeout=1)
             except subprocess.TimeoutExpired:
+                log_proxy_message(f"clangd 子进程未及时退出, 准备 kill: clangd_pid={p.pid}")
                 p.kill()
                 p.wait(timeout=1)
 
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
         cleanup_instance_registry()
+        log_proxy_message(
+            f"代理退出: proxy_pid={os.getpid()}, clangd_pid={p.pid}, returncode={p.returncode}, exit_set={exit_event.is_set()}, shutdown_reason={shutdown_reason}"
+        )
 
         return p.returncode if p.returncode is not None else 0
 
 
+def handle_exit_signal(signum: int, frame):
+    signame = signal.Signals(signum).name
+    log_proxy_message(
+        f"收到退出信号: signum={signum}, signame={signame}, exit_set_before={exit_event.is_set()}"
+    )
+    request_shutdown(f"signal:{signame}")
+
+
 if __name__ == "__main__":
-    signal.signal(signal.SIGINT, lambda signum, frame: exit_event.set())
-    signal.signal(signal.SIGTERM, lambda signum, frame: exit_event.set())
-    signal.signal(signal.SIGHUP, lambda signum, frame: exit_event.set())
+    install_thread_exception_logging()
+    signal.signal(signal.SIGINT, handle_exit_signal)
+    signal.signal(signal.SIGTERM, handle_exit_signal)
+    signal.signal(signal.SIGHUP, handle_exit_signal)
     sys.exit(main())
