@@ -3,6 +3,7 @@ import subprocess
 import threading
 import os
 import signal
+import hashlib
 import json
 import re
 import shlex
@@ -41,6 +42,7 @@ workspace_root_path: str | None = None
 clangd_stdin = None
 clangd_write_lock = threading.RLock()
 client_write_lock = threading.RLock()
+instance_registry_path: str | None = None
 
 INTERNAL_REQUEST_PREFIX = "__proxy_internal__"
 INTERNAL_REQUEST_TIMEOUT_SECONDS = 1.0
@@ -330,6 +332,93 @@ def normalize_workspace_path(path: str | None) -> str | None:
     if not path:
         return None
     return os.path.abspath(os.path.expanduser(path))
+
+
+def compute_instance_registry_path(root_uri: str | None, process_id: int | None) -> str:
+    compile_dir = parse_compile_commands_dir_arg() or ""
+    key_source = f"{root_uri or ''}|{process_id if isinstance(process_id, int) else ''}|{compile_dir}"
+    key_hash = hashlib.sha1(key_source.encode("utf-8")).hexdigest()
+    return os.path.join("/tmp", f"clangd_py_instance_{key_hash}.pid")
+
+
+def is_pid_alive(pid: int) -> bool:
+    if pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    return True
+
+
+def process_looks_like_proxy(pid: int) -> bool:
+    try:
+        with open(f"/proc/{pid}/cmdline", "rb") as f:
+            parts = [part.decode("utf-8", errors="replace") for part in f.read().split(b"\0") if part]
+    except Exception:
+        return False
+
+    script_path = os.path.abspath(__file__)
+    return any(part == script_path for part in parts)
+
+
+def cleanup_instance_registry():
+    global instance_registry_path
+    path = instance_registry_path
+    if not path:
+        return
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            recorded_pid = int(f.read().strip())
+    except Exception:
+        recorded_pid = None
+
+    if recorded_pid == os.getpid():
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+    instance_registry_path = None
+
+
+def register_proxy_instance(root_uri: str | None, process_id: int | None):
+    global instance_registry_path
+    registry_path = compute_instance_registry_path(root_uri, process_id)
+
+    previous_pid = None
+    try:
+        with open(registry_path, "r", encoding="utf-8") as f:
+            previous_pid = int(f.read().strip())
+    except Exception:
+        previous_pid = None
+
+    if (
+        isinstance(previous_pid, int)
+        and previous_pid != os.getpid()
+        and is_pid_alive(previous_pid)
+        and process_looks_like_proxy(previous_pid)
+    ):
+        try:
+            os.kill(previous_pid, signal.SIGTERM)
+            deadline = time.monotonic() + 1.0
+            while time.monotonic() < deadline:
+                if not is_pid_alive(previous_pid):
+                    break
+                time.sleep(0.05)
+            if is_pid_alive(previous_pid):
+                os.kill(previous_pid, signal.SIGKILL)
+        except OSError:
+            pass
+
+    try:
+        with open(registry_path, "w", encoding="utf-8") as f:
+            f.write(str(os.getpid()))
+    except OSError:
+        return
+
+    instance_registry_path = registry_path
 
 
 def parse_compile_commands_dir_arg() -> str | None:
@@ -2597,6 +2686,7 @@ def hook_message(direction: str, msg: dict[str, Any]) -> dict[str, Any]:
             if root_path:
                 global workspace_root_path
                 workspace_root_path = normalize_workspace_path(root_path)
+            register_proxy_instance(root_uri if isinstance(root_uri, str) else None, params.get("processId"))
 
         # didOpen：保存完整文本
         if method == "textDocument/didOpen":
@@ -2996,10 +3086,13 @@ def main():
 
         t1.join(timeout=1.0)
         t2.join(timeout=1.0)
+        cleanup_instance_registry()
 
         return p.returncode if p.returncode is not None else 0
 
 
 if __name__ == "__main__":
     signal.signal(signal.SIGINT, lambda signum, frame: exit_event.set())
+    signal.signal(signal.SIGTERM, lambda signum, frame: exit_event.set())
+    signal.signal(signal.SIGHUP, lambda signum, frame: exit_event.set())
     sys.exit(main())
