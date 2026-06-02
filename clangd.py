@@ -55,6 +55,7 @@ DEFINITION_LOOKUP_MISS = object()
 
 internal_request_lock = threading.RLock()
 internal_request_counter = 0
+thread_context = threading.local()
 internal_request_waiters: dict[str, dict[str, Any]] = {}
 internal_request_metadata: dict[str, dict[str, Any]] = {}
 
@@ -304,12 +305,21 @@ class ExprDiagnostic:
     severity: int = 1
 
 
+@dataclass(frozen=True)
+class LiteralInfo:
+    kind: str
+    standard: bool
+    suffix: str = ""
+    int_value: int | None = None
+
+
 @dataclass
 class ExprNode:
     type_name: str | None
     start: int
     end: int
     diagnostics: list[ExprDiagnostic] = field(default_factory=list)
+    literal_info: LiteralInfo | None = None
 
 
 @dataclass
@@ -1182,6 +1192,10 @@ def request_clangd(
             internal_request_waiters.pop(req_id, None)
 
 
+def is_clangd_response_thread() -> bool:
+    return getattr(thread_context, "direction", None) == "Clangd -> VSCode"
+
+
 def read_document_lines(uri: str) -> list[str] | None:
     with state_lock:
         lines = documents.get(uri)
@@ -1326,7 +1340,7 @@ def lookup_function_type_via_clangd_cached(
             return None
         return cached
 
-    if not allow_request:
+    if not allow_request or is_clangd_response_thread():
         return None
 
     response = request_clangd("textDocument/definition", {
@@ -1699,6 +1713,42 @@ def promote_float_type(bits: int) -> str | None:
     return FLOAT_BY_BITS.get(bits)
 
 
+def max_int_value_for_type(expr_type: ExprType) -> int | None:
+    if expr_type.kind != "int":
+        return None
+    if expr_type.signed:
+        return (1 << (expr_type.bits - 1)) - 1
+    return (1 << expr_type.bits) - 1
+
+
+def coerce_literal_type(node: ExprNode, other_type_name: str | None) -> str | None:
+    literal = node.literal_info
+    if literal is None or not literal.standard:
+        return node.type_name
+
+    other = get_expr_type(other_type_name)
+    if other is None:
+        return node.type_name
+
+    if literal.kind == "int":
+        if literal.suffix:
+            return node.type_name
+        if other.kind != "int" or literal.int_value is None:
+            return node.type_name
+        max_value = max_int_value_for_type(other)
+        if max_value is None or literal.int_value > max_value:
+            return node.type_name
+        return other.name
+
+    if literal.kind == "float":
+        if literal.suffix:
+            return node.type_name
+        if other.kind == "float" and other.name == "f32":
+            return other.name
+
+    return node.type_name
+
+
 def infer_binary_result_type(op: str, left_type: str | None, right_type: str | None) -> tuple[str | None, str | None]:
     left = get_expr_type(left_type)
     right = get_expr_type(right_type)
@@ -1805,6 +1855,48 @@ def infer_atom_type(text: str, known_vars: dict[str, str]) -> str | None:
         return normalize_type_name(known_vars.get(name))
 
     return normalize_type_name(text)
+
+
+def infer_atom_node(text: str, known_vars: dict[str, str], start: int, end: int) -> ExprNode:
+    stripped = text.strip()
+    type_name = infer_atom_type(stripped, known_vars)
+    literal_info = None
+
+    suffix_match = LITERAL_WITH_SUFFIX_RE.match(stripped)
+    if suffix_match:
+        suffix = suffix_match.group("suffix") or ""
+        literal_kind = "float" if suffix.lower().startswith("f") else "int"
+        literal_info = LiteralInfo(kind=literal_kind, standard=False, suffix=suffix.lower())
+    else:
+        float_match = STANDARD_FLOAT_LITERAL_RE.match(stripped)
+        if float_match:
+            literal_info = LiteralInfo(
+                kind="float",
+                standard=True,
+                suffix=(float_match.group("suffix") or "").lower(),
+            )
+        else:
+            int_match = STANDARD_INT_LITERAL_RE.match(stripped)
+            if int_match:
+                int_value = None
+                try:
+                    int_value, _ = parse_int_literal_value(int_match.group("body"))
+                except Exception:
+                    int_value = None
+                literal_info = LiteralInfo(
+                    kind="int",
+                    standard=True,
+                    suffix=(int_match.group("suffix") or "").lower(),
+                    int_value=int_value,
+                )
+
+    return ExprNode(
+        type_name=type_name,
+        start=start,
+        end=end,
+        diagnostics=[],
+        literal_info=literal_info,
+    )
 
 
 def collect_known_functions(lines: list[str]) -> dict[str, str]:
@@ -1933,6 +2025,7 @@ class ExprParser:
             start=start,
             end=inner.end,
             diagnostics=list(inner.diagnostics),
+            literal_info=inner.literal_info,
         )
 
     def parse_primary(self) -> ExprNode | None:
@@ -1956,6 +2049,7 @@ class ExprParser:
                 start=start,
                 end=self.pos,
                 diagnostics=list(inner.diagnostics),
+                literal_info=inner.literal_info,
             )
             return self.parse_postfix(node)
 
@@ -1968,12 +2062,7 @@ class ExprParser:
                 node = self.parse_call(start, name, start)
                 return self.parse_postfix(node)
 
-            node = ExprNode(
-                type_name=infer_atom_type(name, self.known_vars),
-                start=start,
-                end=end,
-                diagnostics=[],
-            )
+            node = infer_atom_node(name, self.known_vars, start, end)
             return self.parse_postfix(node)
 
         atom = read_atom(self.expr, self.pos)
@@ -1982,12 +2071,7 @@ class ExprParser:
 
         text, end = atom
         self.pos = end
-        node = ExprNode(
-            type_name=infer_atom_type(text, self.known_vars),
-            start=start,
-            end=end,
-            diagnostics=[],
-        )
+        node = infer_atom_node(text, self.known_vars, start, end)
         return self.parse_postfix(node)
 
     def parse_postfix(self, node: ExprNode) -> ExprNode:
@@ -2003,6 +2087,7 @@ class ExprParser:
                         start=node.start,
                         end=self.pos,
                         diagnostics=list(node.diagnostics),
+                        literal_info=None,
                     )
 
                 member_name, member_end = ident
@@ -2014,6 +2099,7 @@ class ExprParser:
                         start=node.start,
                         end=self.pos,
                         diagnostics=list(node.diagnostics),
+                        literal_info=None,
                     )
 
                 member_node = self.parse_call(node.start, member_name, member_start, True)
@@ -2022,6 +2108,7 @@ class ExprParser:
                     start=node.start,
                     end=member_node.end,
                     diagnostics=list(node.diagnostics) + list(member_node.diagnostics),
+                    literal_info=None,
                 )
                 continue
 
@@ -2049,6 +2136,7 @@ class ExprParser:
                 start=start,
                 end=self.pos,
                 diagnostics=diagnostics,
+                literal_info=None,
             )
 
         self.pos += 1
@@ -2071,6 +2159,7 @@ class ExprParser:
                 start=start,
                 end=self.pos,
                 diagnostics=diagnostics,
+                literal_info=None,
             )
 
         while self.pos < len(self.expr):
@@ -2106,6 +2195,7 @@ class ExprParser:
             start=start,
             end=self.pos,
             diagnostics=diagnostics,
+            literal_info=None,
         )
 
     def parse_static_cast(self, start: int) -> ExprNode | None:
@@ -2170,13 +2260,16 @@ class ExprParser:
             start=start,
             end=self.pos,
             diagnostics=[],
+            literal_info=None,
         )
 
     def combine_binary(self, left: ExprNode, right: ExprNode, op: str) -> ExprNode:
         diagnostics = list(left.diagnostics)
         diagnostics.extend(right.diagnostics)
 
-        result_type, message = infer_binary_result_type(op, left.type_name, right.type_name)
+        left_type_name = coerce_literal_type(left, right.type_name)
+        right_type_name = coerce_literal_type(right, left.type_name)
+        result_type, message = infer_binary_result_type(op, left_type_name, right_type_name)
         if message:
             diagnostics.append(
                 ExprDiagnostic(
@@ -2191,6 +2284,7 @@ class ExprParser:
             start=left.start,
             end=right.end,
             diagnostics=diagnostics,
+            literal_info=None,
         )
 
 
@@ -2388,7 +2482,7 @@ def analyze_lines_uncached(
     return results
 
 
-def get_analysis(uri: str) -> list[dict[str, Any]]:
+def get_analysis(uri: str, allow_active_query: bool = True) -> list[dict[str, Any]]:
     """
     带版本缓存的文档分析。
     同一版本内，inlayHint / hover 复用分析结果，不重复全文件扫描。
@@ -2409,6 +2503,14 @@ def get_analysis(uri: str) -> list[dict[str, Any]]:
 
         # 拷贝一份，避免分析时被 didChange 改动
         lines_snapshot = list(lines)
+
+    if not allow_active_query:
+        return analyze_lines_uncached(
+            lines_snapshot,
+            uri,
+            version,
+            allow_active_query=False,
+        )
 
     result = analyze_lines_uncached(lines_snapshot, uri, version)
 
@@ -2446,8 +2548,8 @@ def recompute_analysis_without_requests(uri: str) -> list[dict[str, Any]]:
     )
 
 
-def make_custom_inlay_hints(uri: str, req_range: dict[str, Any]) -> list[dict[str, Any]]:
-    items = get_analysis(uri)
+def make_custom_inlay_hints(uri: str, req_range: dict[str, Any], allow_active_query: bool = True) -> list[dict[str, Any]]:
+    items = get_analysis(uri, allow_active_query=allow_active_query)
     if not items:
         return []
 
@@ -2483,7 +2585,7 @@ def patch_inlay_hint_response(msg: dict[str, Any], req: dict[str, Any]) -> dict[
     if not isinstance(result, list):
         return msg
 
-    custom_hints = make_custom_inlay_hints(req["uri"], req["range"])
+    custom_hints = make_custom_inlay_hints(req["uri"], req["range"], allow_active_query=False)
     if not custom_hints:
         return msg
 
@@ -2523,10 +2625,10 @@ def patch_inlay_hint_response(msg: dict[str, Any], req: dict[str, Any]) -> dict[
     return msg
 
 
-def make_custom_diagnostics(uri: str) -> list[dict[str, Any]]:
+def make_custom_diagnostics(uri: str, allow_active_query: bool = True) -> list[dict[str, Any]]:
     diagnostics = []
 
-    for item in get_analysis(uri):
+    for item in get_analysis(uri, allow_active_query=allow_active_query):
         for diag in item.get("diagnostics", []):
             diagnostics.append({
                 "range": {
@@ -2557,7 +2659,7 @@ def patch_publish_diagnostics_response(msg: dict[str, Any]) -> dict[str, Any]:
     if not uri or not isinstance(diagnostics, list):
         return msg
 
-    custom_diagnostics = make_custom_diagnostics(uri)
+    custom_diagnostics = make_custom_diagnostics(uri, allow_active_query=False)
     if not custom_diagnostics:
         return msg
 
@@ -3198,6 +3300,7 @@ def transfer_with_hook(fd_in: int, fd_out: int, direction: str):
     last_summary = "无"
     last_body_len = 0
     try:
+        thread_context.direction = direction
         # 用 dup 后的 fd 构造局部 file object, 避免线程退出时把共享 pipe 直接关掉.
         f_in = os.fdopen(os.dup(fd_in), "rb", buffering=0)
         f_out = os.fdopen(os.dup(fd_out), "wb", buffering=0)
