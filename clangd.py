@@ -109,6 +109,20 @@ AUTO_ASSIGN_RE = re.compile(
     re.VERBOSE,
 )
 
+LOCAL_TYPED_ASSIGN_RE = re.compile(
+    r"""
+    ^
+    (?P<indent>\s*)
+    (?P<decl_type>[A-Za-z_:\s][A-Za-z0-9_:\s*&<>,]*?)
+    \s+
+    (?P<name>[A-Za-z_]\w*)
+    \s*=\s*
+    (?P<expr>.*?)
+    \s*;
+    """,
+    re.VERBOSE,
+)
+
 LITERAL_WITH_SUFFIX_RE = re.compile(
     rf"""
     ^\s*
@@ -176,7 +190,7 @@ FUNCTION_DECL_RE = re.compile(
     r"""
     ^\s*
     (?:(?:inline|constexpr|static|extern|virtual|friend)\s+)*
-    (?P<ret>[A-Za-z_:\s][A-Za-z0-9_:\s*&<>]*?)
+    (?P<ret>[A-Za-z_:\s][A-Za-z0-9_:\s*&<>,]*?)
     \s+
     (?P<name>[A-Za-z_]\w*)
     \s*\([^;{}()]*\)\s*
@@ -190,7 +204,7 @@ VARIABLE_DECL_RE = re.compile(
     r"""
     ^\s*
     (?:(?:inline|constexpr|static|extern)\s+)*
-    (?P<type>[A-Za-z_:\s][A-Za-z0-9_:\s*&<>]*?)
+    (?P<type>[A-Za-z_:\s][A-Za-z0-9_:\s*&<>,]*?)
     \s+
     (?P<name>[A-Za-z_]\w*)
     \s*(?:=\s*[^;{}()]*)?;
@@ -1654,7 +1668,7 @@ def extract_hover_text(result: Any) -> str:
 
 
 FUNCTION_SIGNATURE_RE = re.compile(
-    r"(?P<ret>[A-Za-z_:\s*&<>]+?)\s+(?P<name>[~A-Za-z_][A-Za-z0-9_:<>]*)\s*\(",
+    r"(?P<ret>[A-Za-z_:\s*&<>,]+?)\s+(?P<name>[~A-Za-z_][A-Za-z0-9_:<>]*)\s*\(",
 )
 HOVER_RESULT_TYPE_RE = re.compile(r"→\s+`([^`]+)`")
 
@@ -1684,6 +1698,91 @@ def resolve_hover_return_type(result: dict[str, Any], name: str) -> str | None:
             return result_type
 
     return None
+
+
+def split_top_level_commas(text: str) -> list[str]:
+    parts: list[str] = []
+    depth_angle = 0
+    depth_paren = 0
+    current: list[str] = []
+    for ch in text:
+        if ch == "<":
+            depth_angle += 1
+        elif ch == ">" and depth_angle > 0:
+            depth_angle -= 1
+        elif ch == "(":
+            depth_paren += 1
+        elif ch == ")" and depth_paren > 0:
+            depth_paren -= 1
+        elif ch == "," and depth_angle == 0 and depth_paren == 0:
+            segment = "".join(current).strip()
+            if segment:
+                parts.append(segment)
+            current = []
+            continue
+        current.append(ch)
+
+    tail = "".join(current).strip()
+    if tail:
+        parts.append(tail)
+    return parts
+
+
+def parse_function_params_from_signature(signature: str) -> dict[str, str]:
+    lparen = signature.find("(")
+    rparen = signature.rfind(")")
+    if lparen < 0 or rparen <= lparen:
+        return {}
+
+    params_text = signature[lparen + 1:rparen].strip()
+    if not params_text or params_text == "void":
+        return {}
+
+    params: dict[str, str] = {}
+    for raw_param in split_top_level_commas(params_text):
+        clean = raw_param.strip()
+        if not clean or clean == "...":
+            continue
+        clean = clean.split("=", 1)[0].strip()
+        clean = re.sub(r"\b(?:constexpr|consteval|constinit|register)\b", " ", clean)
+        clean = " ".join(clean.split())
+        match = re.match(r"(?P<type>.+?)\s+(?P<name>[A-Za-z_]\w*)$", clean)
+        if not match:
+            continue
+        param_type = normalize_type_name(match.group("type"))
+        if not param_type:
+            continue
+        params[match.group("name")] = param_type
+    return params
+
+
+def merge_visible_vars(global_vars: dict[str, str], scope_stack: list[dict[str, str]]) -> dict[str, str]:
+    visible = dict(global_vars)
+    for scope in scope_stack:
+        visible.update(scope)
+    return visible
+
+
+def match_local_declaration(line: str) -> tuple[str, re.Match[str], str | None] | None:
+    auto_match = AUTO_ASSIGN_RE.match(line)
+    if auto_match:
+        return "auto", auto_match, None
+
+    typed_match = LOCAL_TYPED_ASSIGN_RE.match(line)
+    if typed_match is None:
+        return None
+
+    stripped = line.strip()
+    if (
+        stripped.startswith(("using ", "return ", "if ", "if(", "for ", "for(", "while ", "while(", "switch ", "switch(", "class ", "struct ", "enum ", "typedef ", "template<", "#"))
+        or FUNCTION_DECL_RE.match(stripped)
+    ):
+        return None
+
+    declared_type = normalize_type_name(typed_match.group("decl_type"))
+    if not declared_type:
+        return None
+    return "typed", typed_match, declared_type
 
 
 def get_expr_type(type_name: str | None) -> ExprType | None:
@@ -2420,24 +2519,42 @@ def analyze_lines_uncached(
     allow_active_query: bool = True,
 ) -> list[dict[str, Any]]:
     known_vars: dict[str, str] = {}
+    scope_stack: list[dict[str, str]] = []
     known_functions = build_project_function_index(uri)
     known_functions.update(collect_known_functions(lines))
     results: list[dict[str, Any]] = []
 
     for line_no, line in enumerate(lines):
-        m = AUTO_ASSIGN_RE.match(line)
-        if not m:
+        function_scope_pushed = False
+        signature = extract_function_signature(lines, line_no)
+        if signature and "{" in signature and not signature.rstrip().endswith(";"):
+            scope_stack.append(parse_function_params_from_signature(signature))
+            function_scope_pushed = True
+
+        extra_open_braces = line.count("{") - (1 if function_scope_pushed else 0)
+        while extra_open_braces > 0:
+            scope_stack.append({})
+            extra_open_braces -= 1
+
+        decl_match = match_local_declaration(line)
+        if decl_match is None:
+            close_braces = line.count("}")
+            while close_braces > 0 and scope_stack:
+                scope_stack.pop()
+                close_braces -= 1
             continue
 
+        decl_kind, m, declared_type = decl_match
         name = m.group("name")
         expr = m.group("expr")
-        auto_decl = m.group("auto_decl")
-        ptr_ref = m.group("ptr_ref")
         expr_start = m.start("expr")
+        visible_vars = merge_visible_vars(known_vars, scope_stack)
+        auto_decl = m.groupdict().get("auto_decl", "")
+        ptr_ref = m.groupdict().get("ptr_ref")
 
         expr_result = infer_expr_result(
             expr,
-            known_vars,
+            visible_vars,
             known_functions,
             uri=uri,
             line_no=line_no,
@@ -2447,14 +2564,20 @@ def analyze_lines_uncached(
         )
         base_type = expr_result.type_name
         display_type = None
-        if base_type:
+        show_hint = decl_kind == "auto"
+        if decl_kind == "auto" and base_type:
             display_type = decorate_type_by_auto_decl(base_type, auto_decl, ptr_ref)
+        elif decl_kind == "typed":
+            display_type = declared_type
 
         var_start = m.start("name")
         var_end = m.end("name")
 
         if display_type:
-            known_vars[name] = display_type
+            if scope_stack:
+                scope_stack[-1][name] = display_type
+            else:
+                known_vars[name] = display_type
 
         diagnostics = []
         for diag in expr_result.diagnostics:
@@ -2466,7 +2589,20 @@ def analyze_lines_uncached(
                 "severity": diag.severity,
             })
 
+        if decl_kind == "typed" and declared_type and base_type and declared_type != base_type:
+            diagnostics.append({
+                "line": line_no,
+                "start": var_start,
+                "end": max(var_end, var_start + 1),
+                "message": f"初始化类型不匹配: 变量 `{name}` 声明为 `{declared_type}`, 但表达式推断为 `{base_type}`",
+                "severity": 1,
+            })
+
         if display_type is None and not diagnostics:
+            close_braces = line.count("}")
+            while close_braces > 0 and scope_stack:
+                scope_stack.pop()
+                close_braces -= 1
             continue
 
         results.append({
@@ -2475,9 +2611,15 @@ def analyze_lines_uncached(
             "var_end": var_end,
             "name": name,
             "type": display_type,
+            "show_hint": show_hint,
             "line_text": line,
             "diagnostics": diagnostics,
         })
+
+        close_braces = line.count("}")
+        while close_braces > 0 and scope_stack:
+            scope_stack.pop()
+            close_braces -= 1
 
     return results
 
@@ -2559,7 +2701,7 @@ def make_custom_inlay_hints(uri: str, req_range: dict[str, Any], allow_active_qu
     hints: list[dict[str, Any]] = []
 
     for item in items:
-        if not item.get("type"):
+        if not item.get("type") or not item.get("show_hint", True):
             continue
 
         line_no = item["line"]
